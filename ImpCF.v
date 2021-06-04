@@ -1,5 +1,5 @@
 Require Import Coq.Lists.List.
-Require Import PL.Imp PL.ImpExt PL.RTClosure.
+Require Import Shallow.Imp Shallow.ImpExt Shallow.lib.RTClosure.
 
 Inductive com : Type :=
   | CSkip
@@ -7,6 +7,8 @@ Inductive com : Type :=
   | CSeq (c1 c2 : com)
   | CIf (b : bexp) (c1 c2 : com)
   | CWhile (b : bexp) (c : com)
+  (* FIXME: change while loop to for loop below *)
+  (* CFor (c1 c2 : com) (* c2 is incremental step, c1 is loop body, i.e., for(;;c2) { c1 } *) *)
   | CBreak
   | CCont
   .

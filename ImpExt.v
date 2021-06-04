@@ -1,5 +1,5 @@
-Require Import PL.Imp.
-Require Import PL.RTClosure.
+Require Import Shallow.Imp.
+Require Import Shallow.lib.RTClosure.
 
 Ltac induction_cstep H :=
   match type of H with

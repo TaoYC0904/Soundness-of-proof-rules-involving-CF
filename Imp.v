@@ -16,7 +16,7 @@ Require Export Coq.micromega.Psatz.
 Require Export Coq.ZArith.ZArith.
 Require Export Coq.Strings.String.
 Require Export Coq.Logic.Classical.
-Require Import PL.RTClosure.
+Require Import Shallow.lib.RTClosure.
 
 Arguments clos_refl_trans {A} _ _ _.
 Arguments clos_refl_trans_1n {A} _ _ _.
