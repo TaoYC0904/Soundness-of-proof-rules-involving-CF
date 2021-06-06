@@ -6,106 +6,84 @@ Inductive com : Type :=
   | CAss (X: var) (a : aexp)
   | CSeq (c1 c2 : com)
   | CIf (b : bexp) (c1 c2 : com)
-  | CWhile (b : bexp) (c : com)
-  (* FIXME: change while loop to for loop below *)
-  (* CFor (c1 c2 : com) (* c2 is incremental step, c1 is loop body, i.e., for(;;c2) { c1 } *) *)
+  | CFor (c1 c2 : com)
   | CBreak
   | CCont
   .
 
-Record denote: Type := {
-  NormalExit: state -> state -> Prop;
-  BreakExit: state -> state -> Prop;
-  ContExit: state -> state -> Prop;
-}.
+Inductive exit_kind: Type :=
+  | EK_Normal
+  | EK_Break
+  | EK_Cont.
 
-Definition skip_sem: denote := {|
-  NormalExit := BinRel.id;
-  BreakExit := BinRel.empty;
-  ContExit := BinRel.empty
-|}.
+Definition skip_sem: state -> exit_kind -> state -> Prop :=
+  fun st1 ek st2 =>
+    st1 = st2 /\ ek = EK_Normal.
 
-Definition break_sem: denote := {|
-  NormalExit := BinRel.empty;
-  BreakExit := BinRel.id;
-  ContExit := BinRel.empty
-|}.
+Definition asgn_sem (X: var) (E: aexp): state -> exit_kind -> state -> Prop :=
+  fun st1 ek st2 => 
+    st2 X = aeval E st1 /\
+    forall Y, X <> Y -> st1 Y = st2 Y /\
+    ek = EK_Normal.
 
-Definition cont_sem: denote := {|
-  NormalExit := BinRel.empty;
-  BreakExit := BinRel.empty;
-  ContExit := BinRel.id
-|}.
+Definition break_sem: state -> exit_kind -> state -> Prop :=
+  fun st1 ek st2 =>
+    st1 = st2 /\ ek = EK_Break.
 
-Definition asgn_sem (X: var) (E: aexp): denote := {|
-  NormalExit :=
-    fun st1 st2 =>
-      st2 X = aeval E st1 /\
-      (forall Y, X <> Y -> st1 Y = st2 Y);
-  BreakExit := BinRel.empty;
-  ContExit := BinRel.empty
-|}.
+Definition cont_sem: state -> exit_kind -> state -> Prop :=
+  fun st1 ek st2 =>
+    st1 = st2 /\ ek = EK_Cont.
 
-Definition seq_sem (d1 d2: denote): denote := {|
-  NormalExit := BinRel.concat (NormalExit d1) (NormalExit d2);
-  BreakExit := BinRel.union
-                 (BreakExit d1)
-                 (BinRel.concat (NormalExit d1) (BreakExit d2));
-  ContExit := BinRel.union
-                (ContExit d1)
-                (BinRel.concat (NormalExit d1) (ContExit d2));
-|}.
+Definition seq_sem (d1 d2: state -> exit_kind -> state -> Prop):
+  state -> exit_kind -> state -> Prop:=
+  fun st1 ek st3 =>
+    (exists st2, d1 st1 EK_Normal st2 /\ d2 st2 ek st3) \/
+    (d1 st1 ek st3 /\ ek <> EK_Normal).
 
-Definition if_sem (b: bexp) (d1 d2: denote): denote := {|
-  NormalExit := BinRel.union
-                  (BinRel.concat
-                     (BinRel.test_rel (beval b))
-                     (NormalExit d1))
-                  (BinRel.concat
-                     (BinRel.test_rel (beval (BNot b)))
-                     (NormalExit d2));
-  BreakExit := BinRel.union
-                 (BinRel.concat
-                    (BinRel.test_rel (beval b))
-                    (BreakExit d1))
-                 (BinRel.concat
-                    (BinRel.test_rel (beval (BNot b)))
-                    (BreakExit d2));
-  ContExit := BinRel.union
-                (BinRel.concat
-                   (BinRel.test_rel (beval b))
-                   (ContExit d1))
-                (BinRel.concat
-                   (BinRel.test_rel (beval (BNot b)))
-                   (ContExit d2))
-|}.
+Definition test_sem (X: state -> Prop): state -> exit_kind -> state -> Prop :=
+  fun st1 ek st2 =>
+    st1 = st2 /\ X st1 /\ ek = EK_Normal.
 
-Fixpoint iter_loop_body (b: bexp) (d: denote) (n: nat): state -> state -> Prop :=
-  match n with
-  | O    => BinRel.union
-              (BinRel.test_rel (beval (! b)))
-              (BinRel.concat (BinRel.test_rel (beval b)) (BreakExit d))
-  | S n' => BinRel.concat
-              (BinRel.test_rel (beval b))
-              (BinRel.concat
-                 (BinRel.union (NormalExit d) (ContExit d))
-                 (iter_loop_body b d n'))
-  end.
+Definition union_sem (d d': state -> exit_kind -> state -> Prop) :
+  state -> exit_kind -> state -> Prop :=
+  fun st1 ek st2 =>
+    d st1 ek st2 \/ d' st1 ek st2.
 
-Definition loop_sem (b: bexp) (d: denote): denote := {|
-  NormalExit := BinRel.omega_union (iter_loop_body b d);
-  BreakExit := BinRel.empty;
-  ContExit := BinRel.empty
-|}.
+Definition if_sem (b: bexp) (d1 d2: state -> exit_kind -> state -> Prop):
+  state -> exit_kind -> state -> Prop :=
+  union_sem  
+    (seq_sem (test_sem (beval b)) d1)
+    (seq_sem (test_sem (beval (! b))) d2).
+
+Inductive iter_loop_body:
+  (state -> exit_kind -> state -> Prop) -> 
+  (state -> exit_kind -> state -> Prop) ->
+  nat -> state -> state -> Prop :=
+  | ILB_0: forall d1 d2 n st1 st2,
+      n = Z.to_nat 0 ->
+      (d1 st1 EK_Break st2) \/
+      (exists st3, d1 st1 EK_Normal st3 /\ d2 st3 EK_Break st2) ->
+      iter_loop_body d1 d2 n st1 st2
+  | ILB_n: forall d1 d2 n st1 st2 st3 n', 
+      n = S n' ->
+      seq_sem d1 d2 st1 EK_Normal st3 ->
+      iter_loop_body d1 d2 n' st3 st2 ->
+      iter_loop_body d1 d2 n st1 st2.
+
+Definition for_sem (d1 d2: state -> exit_kind -> state -> Prop):
+  state -> exit_kind -> state -> Prop :=
+  fun st1 ek st2 =>
+    ek = EK_Normal /\
+    exists n, iter_loop_body d1 d2 n st1 st2.
 
 
-Fixpoint ceval (c: com): denote :=
+Fixpoint ceval (c: com): state -> exit_kind -> state -> Prop :=
   match c with
   | CSkip => skip_sem
   | CAss X E => asgn_sem X E
   | CSeq c1 c2 => seq_sem (ceval c1) (ceval c2)
   | CIf b c1 c2 => if_sem b (ceval c1) (ceval c2)
-  | CWhile b c => loop_sem b (ceval c)
+  | CFor c1 c2 => for_sem (ceval c1) (ceval c2)
   | CBreak => break_sem
   | CCont => cont_sem
   end.
