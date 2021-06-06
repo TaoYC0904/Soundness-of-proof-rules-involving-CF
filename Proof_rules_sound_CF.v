@@ -28,8 +28,10 @@ Inductive WP : com -> continuation -> Assertion -> Assertion -> Assertion
       Assertion_denote st R1 -> WP CBreak nil Q R1 R2 st 
   | WP_Ter3: forall Q R1 R2 st,
       Assertion_denote st R2 -> WP CCont nil Q R1 R2 st 
-  | WP_Pre: forall c k st Q R1 R2 c' k' st',
-      (cstep (c, k, st) (c', k', st') -> WP c' k' Q R1 R2 st') ->
+  | WP_Pre: forall c k st Q R1 R2,
+      (exists c' k' st', cstep (c, k, st) (c', k', st')) ->
+      (forall c' k' st', 
+        cstep (c, k, st) (c', k', st') -> WP c' k' Q R1 R2 st') ->
       WP c k Q R1 R2 st.      
 
 (* definition small step semantics, weakest precondition, validity *)
