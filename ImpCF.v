@@ -9,7 +9,7 @@ Inductive com : Type :=
   | CFor (c1 c2 : com)
   | CBreak
   | CCont
-  .
+.
 
 Inductive exit_kind: Type :=
   | EK_Normal
@@ -76,7 +76,6 @@ Definition for_sem (d1 d2: state -> exit_kind -> state -> Prop):
     ek = EK_Normal /\
     exists n, iter_loop_body d1 d2 n st1 st2.
 
-
 Fixpoint ceval (c: com): state -> exit_kind -> state -> Prop :=
   match c with
   | CSkip => skip_sem
@@ -88,84 +87,79 @@ Fixpoint ceval (c: com): state -> exit_kind -> state -> Prop :=
   | CCont => cont_sem
   end.
 
-Definition cstack: Type := list (bexp * com * com).
+Inductive KElements: Type :=
+  | KSeq (c : com)
+  | KLoop1 (c1 : com) (c2 : com)
+  | KLoop2 (c1 : com) (c2 : com).
 
-Inductive start_with_break: com -> Prop :=
-| SWB_Break: start_with_break CBreak
-| SWB_Seq: forall c1 c2,
-             start_with_break c1 ->
-             start_with_break (CSeq c1 c2).
+Definition continuation: Type := list KElements.
+
+(* Inductive continuation': Type :=
+  | Empty_Continuation
+  | KSeq' (c : com) (k0 : continuation')
+  | KLoop1' (c1 : com) (c2 : com) (k0 : continuation')
+  | KLoop2' (c1 : com) (c2 : com) (k0 : continuation')
+. *)
+
+(* Inductive start_with_break: com -> Prop :=
+  | SWB_Break: start_with_break CBreak
+  | SWB_Seq: forall c1 c2,
+      start_with_break c1 ->
+      start_with_break (CSeq c1 c2).
 
 Inductive start_with_cont: com -> Prop :=
-| SWC_Cont: start_with_cont CCont
-| SWC_Seq: forall c1 c2,
-             start_with_cont c1 ->
-             start_with_cont (CSeq c1 c2).
+  | SWC_Cont: start_with_cont CCont
+  | SWC_Seq: forall c1 c2,
+      start_with_cont c1 ->
+      start_with_cont (CSeq c1 c2).
 
-Inductive start_with_loop: com -> bexp -> com -> com -> Prop :=
-| SWL_While: forall b c, start_with_loop (CWhile b c) b c CSkip
-| SWL_Seq: forall c1 b c11 c12 c2,
-             start_with_loop c1 b c11 c12 ->
-             start_with_loop (CSeq c1 c2) b c11 (CSeq c12 c2).
+Inductive start_with_loop: com -> Prop :=
+  | SWL_For : forall c1 c2, start_with_loop (CFor c1 c2)
+  | SWL_Seq : forall c1 c2,
+      start_with_loop c1 ->
+      start_with_loop (CSeq c1 c2). *)
 
-Inductive cstep : (com * cstack * state) -> (com * cstack * state) -> Prop :=
-  | CS_AssStep : forall st s X a a',
+Inductive cstep: (com * continuation * state) -> (com * continuation * state) -> Prop :=
+  | CS_AssStep : forall st X a a' k,
       astep st a a' ->
-      cstep
-        (CAss X a, s, st)
-        (CAss X a', s, st)
-  | CS_Ass : forall st1 st2 s X n,
+      cstep (CAss X a, k, st) (CAss X a', k, st)
+  | CS_Ass : forall st1 st2 X n k,
       st2 X = n ->
-      (forall Y, X <> Y -> st1 Y = st2 Y) ->
-      cstep
-        (CAss X (ANum n), s, st1)
-        (CSkip, s, st2)
-  | CS_SeqStep : forall st s c1 c1' st' c2,
-      cstep
-        (c1, s, st)
-        (c1', s, st') ->
-      cstep
-        (CSeq c1 c2, s, st)
-        (CSeq c1' c2, s, st')
-  | CS_Seq : forall st s c2,
-      cstep
-        (CSeq CSkip c2, s, st)
-        (c2, s, st)
-  | CS_IfStep : forall st s b b' c1 c2,
+      (forall Y, Y <> X -> st1 Y = st2 Y) ->
+      cstep (CAss X (ANum n), k, st1) (CSkip, k, st2)
+  
+  | CS_Seq : forall st c1 c2 k,
+      cstep (CSeq c1 c2, k, st) (c1, KSeq c2 :: k, st)
+  | CS_SeqSkip : forall c k st,
+      cstep (CSkip, (KSeq c) :: k, st) (c, k, st)
+  | CS_SeqCont : forall c k st,
+      cstep (CCont, (KSeq c) :: k, st) (CCont, k, st)
+  | CS_SeqBreak : forall c k st,
+      cstep (CBreak, (KSeq c) :: k, st) (CBreak, k, st)
+  
+  | CS_IfStep: forall st b b' c1 c2 k,
       bstep st b b' ->
-      cstep
-        (CIf b c1 c2, s, st)
-        (CIf b' c1 c2, s, st)
-  | CS_IfTrue : forall st s c1 c2,
-      cstep
-        (CIf BTrue c1 c2, s, st)
-        (c1, s, st)
-  | CS_IfFalse : forall st s c1 c2,
-      cstep
-        (CIf BFalse c1 c2, s, st)
-        (c2, s, st)
-  | CS_While : forall st s c b c1 c2,
-      start_with_loop c b c1 c2 ->
-      cstep
-        (c, s, st)
-        (CIf b c1 CBreak, (b, c1, c2) :: s, st)
-  | CS_Skip : forall st s b c1 c2,
-      cstep
-        (CSkip, (b, c1, c2) :: s, st)
-        (CIf b c1 CBreak, (b, c1, c2) :: s, st)
-  | CS_Break : forall st s b c1 c2 c,
-      start_with_break c ->
-      cstep
-        (c, (b, c1, c2) :: s, st)
-        (c2, s, st)
-  | CS_Cont : forall st s b c1 c2 c,
-      start_with_cont c ->
-      cstep
-        (c, (b, c1, c2) :: s, st)
-        (CIf b c1 CBreak, (b, c1, c2) :: s, st)
-.
+      cstep (CIf b c1 c2, k, st) (CIf b' c1 c2, k, st)
+  | CS_IfTrue: forall c1 c2 k st,
+      cstep (CIf BTrue c1 c2, k, st) (c1, k, st)
+  | CS_IfFalse: forall c1 c2 k st,
+      cstep (CIf BFalse c1 c2, k, st) (c2, k, st)
+  
+  | CS_For: forall c1 c2 k st,
+      cstep (CFor c1 c2, k, st) 
+            (CSeq c1 CCont, (KLoop1 c1 c2) :: k, st)
+  | CS_ForSkip : forall c1 c2 k st,
+      cstep (CSkip, (KLoop2 c1  c2) :: k, st)
+            (CSeq c1 CCont, (KLoop1 c1 c2) :: k, st)
+  | CS_ForCont : forall c1 c2 k st,
+      cstep (CCont, (KLoop1 c1 c2) :: k, st)
+            (c2, (KLoop2 c1 c2) :: k, st)
+  | CS_ForBreak : forall c1 c2 k st,
+      cstep (CBreak, (KLoop1 c1 c2) :: k, st)
+            (CSkip, k, st).
+    
 
-Ltac induction_cstep H :=
+(* Ltac induction_cstep H :=
   match type of H with
   | ?cstep ?a ?b =>
     revert_dependent_component a H;
@@ -213,6 +207,6 @@ Ltac induction_cstep H :=
                   | idtac ];
             subst Base0
           end
-  end.
+  end. *)
 
 (* 2021-05-08 18:58 *)
