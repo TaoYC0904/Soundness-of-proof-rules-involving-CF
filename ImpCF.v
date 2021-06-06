@@ -157,7 +157,6 @@ Inductive cstep: (com * continuation * state) -> (com * continuation * state) ->
   | CS_ForBreak : forall c1 c2 k st,
       cstep (CBreak, (KLoop1 c1 c2) :: k, st)
             (CSkip, k, st).
-    
 
 (* Ltac induction_cstep H :=
   match type of H with
