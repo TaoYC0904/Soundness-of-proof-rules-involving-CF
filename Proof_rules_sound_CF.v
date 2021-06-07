@@ -34,4 +34,7 @@ Inductive WP : com -> continuation -> Assertion -> Assertion -> Assertion
         cstep (c, k, st) (c', k', st') -> WP c' k' Q R1 R2 st') ->
       WP c k Q R1 R2 st.      
 
+Definition valid_smallstep (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
+  forall st, Assertion_denote st P -> WP c nil Q R1 R2 st.
+
 (* definition small step semantics, weakest precondition, validity *)
