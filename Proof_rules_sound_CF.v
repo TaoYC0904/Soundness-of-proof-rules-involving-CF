@@ -37,7 +37,7 @@ Inductive WP : com -> continuation -> Assertion -> Assertion -> Assertion
 Definition valid_smallstep (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
   forall st, Assertion_denote st P -> WP c nil Q R1 R2 st.
   
-Inductive safe : com -> continuation -> state -> Prop :=
+(* Inductive safe : com -> continuation -> state -> Prop :=
   | safe_Ter1: forall st, safe CSkip nil st 
   | safe_Ter2: forall st, safe CBreak nil st
   | safe_Ter3: forall st, safe CCont nil st    
@@ -69,7 +69,7 @@ Open Scope list_scope.
 
 Definition valid_continuaion (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
   forall k, (guard Q k /\ guard R1 ((KSeq CBreak) :: k) /\ guard R2 ((KSeq CCont) :: k)) ->
-    guard P ((KSeq c) :: k).
+    guard P ((KSeq c) :: k). *)
 
 Fixpoint nocontinue (c : com) : Prop :=
   match c with
