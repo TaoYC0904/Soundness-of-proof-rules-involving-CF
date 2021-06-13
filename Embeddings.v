@@ -2,11 +2,14 @@ Require Import Shallow.Imp.
 Require Import Shallow.ImpCF.
 Import Assertion_S.
 
-Print state. 
+(* Print state. 
 Print com. 
 Print Assertion.
 Print Assertion_denote.    
-Print ceval.
+Print ceval. *)
+
+
+Module BigS.
 
 Definition partial_valid_bigstep (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
   forall st1 st2 ek,
@@ -19,6 +22,10 @@ Definition partial_valid_bigstep (P : Assertion) (c : com) (Q R1 R2 : Assertion)
 Definition total_valid_bigstep (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
   (forall st1, Assertion_denote st1 P -> (exists ek st2, ceval c st1 ek st2)) /\
   partial_valid_bigstep P c Q R1 R2.
+
+End BigS.
+
+Module SmallS.
 
 Inductive WP : com -> continuation -> Assertion -> Assertion -> Assertion
   -> state -> Prop :=
@@ -36,8 +43,12 @@ Inductive WP : com -> continuation -> Assertion -> Assertion -> Assertion
 
 Definition valid_smallstep (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
   forall st, Assertion_denote st P -> WP c nil Q R1 R2 st.
-  
-(* Inductive safe : com -> continuation -> state -> Prop :=
+
+End SmallS.
+
+Module Cont.
+
+Inductive safe : com -> continuation -> state -> Prop :=
   | safe_Ter1: forall st, safe CSkip nil st 
   | safe_Ter2: forall st, safe CBreak nil st
   | safe_Ter3: forall st, safe CCont nil st    
@@ -69,7 +80,9 @@ Open Scope list_scope.
 
 Definition valid_continuaion (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
   forall k, (guard Q k /\ guard R1 ((KSeq CBreak) :: k) /\ guard R2 ((KSeq CCont) :: k)) ->
-    guard P ((KSeq c) :: k). *)
+    guard P ((KSeq c) :: k).
+
+End Cont.
 
 Fixpoint nocontinue (c : com) : Prop :=
   match c with
@@ -81,52 +94,3 @@ Fixpoint nocontinue (c : com) : Prop :=
   | CBreak        => True 
   | CCont         => False
   end.
-
-Theorem seq_inv_valid_bigstep : forall P c1 c2 Q R1 R2,
-  total_valid_bigstep P (CSeq c1 c2) Q R1 R2 ->
-  (exists Q', (total_valid_bigstep P c1 Q' R1 R2) /\ 
-    (total_valid_bigstep Q' c2 Q R1 R2)).
-Admitted.
-
-Theorem seq_inv_valid_smallstep : forall P c1 c2 Q R1 R2,
-  valid_smallstep P (CSeq c1 c2) Q R1 R2 ->
-  (exists Q', (valid_smallstep P c1 Q' R1 R2) /\
-    (valid_smallstep Q' c2 Q R1 R2)).
-Admitted.
-
-Theorem if_seq_valid_bigstep : forall P b c1 c2 c3 Q R1 R2,
-  total_valid_bigstep P (CSeq (CIf b c1 c2) c3) Q R1 R2 ->
-  total_valid_bigstep P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2.
-Admitted.
-
-Theorem if_seq_valid_smallstep : forall P b c1 c2 c3 Q R1 R2,
-  valid_smallstep P (CSeq (CIf b c1 c2) c3) Q R1 R2 ->
-  valid_smallstep P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2.
-Admitted.
-
-Theorem nocontinue_valid_bigstep : forall P c Q R1 R2 R2',
-  nocontinue c ->
-  total_valid_bigstep P c Q R1 R2 ->
-  total_valid_bigstep P c Q R1 R2'.
-Admitted.
-
-Theorem nocontinue_valid_smallstep : forall P c Q R1 R2 R2',
-  nocontinue c ->
-  valid_smallstep P c Q R1 R2 ->
-  valid_smallstep P c Q R1 R2'.
-Admitted.
-
-Theorem loop_nocontinue_valid_bigstep : forall P c1 c2 Q R1 R2,
-  nocontinue c1 ->
-  nocontinue c2 ->
-  total_valid_bigstep P (CFor (CSeq c1 c2) CSkip) Q R1 R2 ->
-  total_valid_bigstep P (CFor c1 c2) Q R1 R2.
-Admitted.
-
-Theorem loop_nocontinue_valid_smallstep : forall P c1 c2 Q R1 R2,
-  nocontinue c1 ->
-  nocontinue c2 ->
-  valid_smallstep P (CFor (CSeq c1 c2) CSkip) Q R1 R2 ->
-  valid_smallstep P (CFor c1 c2) Q R1 R2.
-Admitted. 
-
