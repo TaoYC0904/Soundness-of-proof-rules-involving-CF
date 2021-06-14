@@ -1,6 +1,6 @@
 Require Import Shallow.Imp.
 Require Import Shallow.ImpCF.
-Import Assertion_S.
+(* Import Assertion_S. *)
 
 (* Print state. 
 Print com. 
@@ -8,6 +8,15 @@ Print Assertion.
 Print Assertion_denote.    
 Print ceval. *)
 
+Module Assertion_Shallow.
+
+Definition Assertion : Type := state -> Prop.
+
+Definition Assertion_denote (st : state) (P : Assertion) : Prop := P st.
+
+End Assertion_Shallow.
+
+Import Assertion_Shallow.
 
 Module BigS.
 
@@ -64,7 +73,7 @@ Inductive safe : com -> continuation -> state -> Prop :=
 Definition guard (P : Assertion) (k : continuation) : Prop :=
   forall st, Assertion_denote st P -> safe CSkip k st.
 
-Lemma all_guard_nil : forall P, guard P nil.
+(* Lemma all_guard_nil : forall P, guard P nil.
 Proof.
   intros.
   unfold guard.
@@ -78,7 +87,7 @@ Proof.
   unfold guard.
   intros.
   inversion H; subst.
-Qed. 
+Qed.  *)
 
 Open Scope list_scope.
 
