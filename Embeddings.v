@@ -16,6 +16,8 @@ Definition Assertion_denote (st : state) (P : Assertion) : Prop := P st.
 
 End Assertion_Shallow.
 
+Import Assertion_Shallow.
+
 Module BigS.
 
 Definition partial_valid_bigstep (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
@@ -67,7 +69,7 @@ Inductive safe : com -> continuation -> state -> Prop :=
 Definition guard (P : Assertion) (k : continuation) : Prop :=
   forall st, Assertion_denote st P -> safe CSkip k st.
 
-Lemma all_guard_nil : forall P, guard P nil.
+(* Lemma all_guard_nil : forall P, guard P nil.
 Proof.
   intros.
   unfold guard.
@@ -81,7 +83,7 @@ Proof.
   unfold guard.
   intros.
   inversion H; subst.
-Qed. 
+Qed.  *)
 
 Open Scope list_scope.
 

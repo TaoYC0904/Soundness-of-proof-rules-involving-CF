@@ -2,7 +2,7 @@ Require Import Shallow.Imp.
 Require Import Shallow.ImpCF.
 Require Import Shallow.Embeddings.
 
-Import Assertion_S.
+Import Assertion_shallow.
 Import BigS.
 
 (* Definition inSP (st : state) (P : Assertion) (c : com) : Prop :=
