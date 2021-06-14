@@ -2,14 +2,16 @@ Require Import Shallow.Imp.
 Require Import Shallow.ImpCF.
 Require Import Shallow.Embeddings.
 
-Import Assertion_shallow.
+Import Assertion_Shallow.
 Import BigS.
 
 (* Definition inSP (st : state) (P : Assertion) (c : com) : Prop :=
   exists st0, Assertion_denote st0 P /\ ceval c st0 EK_Normal st.
   
-Definition SP (P : Assertion) (c : com) : Assertion :=
-   *)
+Inductive SP (P : Assertion) (c : com) : state -> Prop :=
+  | _inSP : forall P c st,
+    inSP st P c -> SP P c st.
+ *)
 
 Theorem seq_inv_valid_bigstep : forall P c1 c2 Q R1 R2,
   total_valid_bigstep P (CSeq c1 c2) Q R1 R2 ->
@@ -176,12 +178,6 @@ Proof.
           tauto.
 Qed.
 
-Lemma noncontinue_nocontext : forall P c Q R1 R2,
-  nocontinue c ->
-  total_valid_bigstep P c Q R1 R2 ->
-  .
-
-
 Theorem nocontinue_valid_bigstep : forall P c Q R1 R2 R2',
   nocontinue c ->
   total_valid_bigstep P c Q R1 R2 ->
@@ -190,12 +186,35 @@ Proof.
   intros.
   unfold total_valid_bigstep in H0.
   unfold total_valid_bigstep.
+  unfold partial_valid_bigstep in H0.
+  unfold partial_valid_bigstep.
   destruct H0.
   destruct c.
-  + 
-  
-  
-  
+  + (* c = CSkip *)
+    split; intros.
+    - exists EK_Normal, st1.
+      simpl.
+      unfold skip_sem; tauto.
+    - specialize (H1 st1 st2 ek H2 H3).
+      destruct H1 as [? [? ?]].
+      split; try split; try tauto.
+      simpl in H3; unfold skip_sem in H3.
+      destruct H3.
+      intros.
+      rewrite H6 in H7; inversion H7.
+  + (* c = CAss X a *)
+    split; intros.
+    - specialize (H0 st1 H2).
+      destruct H0 as [ek [st2 ?]].
+      exists ek, st2.
+      tauto.
+    - specialize (H1 st1 st2 ek H2 H3).
+      destruct H1 as [? [? ?]].
+      split; try split; try tauto.
+      simpl in H3; unfold asgn_sem in H3.
+      destruct H3.
+      
+      
     
   
 Admitted.
