@@ -1,6 +1,6 @@
 Require Import Shallow.Imp.
 Require Import Shallow.ImpCF.
-Import Assertion_S.
+(* Import Assertion_S. *)
 
 (* Print state. 
 Print com. 
@@ -8,6 +8,13 @@ Print Assertion.
 Print Assertion_denote.    
 Print ceval. *)
 
+Module Assertion_Shallow.
+
+Definition Assertion : Type := state -> Prop.
+
+Definition Assertion_denote (st : state) (P : Assertion) : Prop := P st.
+
+End Assertion_Shallow.
 
 Module BigS.
 
