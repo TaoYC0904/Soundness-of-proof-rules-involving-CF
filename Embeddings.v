@@ -113,9 +113,10 @@ Definition simulation (sim : (com * continuation) -> (com * continuation) -> Pro
   forall c1 k1 c2 k2,
     sim (c1, k1) (c2, k2) ->
   (* (forall st, reducible c1 k1 st -> reducible c2 k2 st) /\ *)
-  ((c1, k1) = (CSkip, nil) -> (c2, k2) = (CSkip, nil)) /\
+  (* ((c1, k1) = (CSkip, nil) -> (c2, k2) = (CSkip, nil)) /\
   ((c1, k1) = (CBreak, nil) -> (c2, k2) = (CBreak, nil)) /\
-  ((c1, k1) = (CCont, nil) -> (c2, k2) = (CCont, nil)) /\
+  ((c1, k1) = (CCont, nil) -> (c2, k2) = (CCont, nil)) /\ *)
+  (forall st, ~ reducible c1 k1 st -> mstep (c2, k2, st) (c1, k1, st)) /\
   (forall c1' k1' st st',
     cstep (c1, k1, st) (c1', k1', st') ->
     exists c2' k2',
