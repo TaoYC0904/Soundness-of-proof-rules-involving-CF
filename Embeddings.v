@@ -34,6 +34,9 @@ Definition total_valid_bigstep (P : Assertion) (c : com) (Q R1 R2 : Assertion) :
 
 End BigS.
 
+
+Definition reducible c k st : Prop := (exists c' k' st', cstep (c, k, st) (c', k', st')).
+
 Module SmallS.
 
 Inductive WP : com -> continuation -> Assertion -> Assertion -> Assertion
@@ -45,7 +48,8 @@ Inductive WP : com -> continuation -> Assertion -> Assertion -> Assertion
   | WP_Ter3: forall Q R1 R2 st,
       Assertion_denote st R2 -> WP CCont nil Q R1 R2 st 
   | WP_Pre: forall c k st Q R1 R2,
-      (exists c' k' st', cstep (c, k, st) (c', k', st')) ->
+      reducible c k st ->
+      (* (exists c' k' st', cstep (c, k, st) (c', k', st')) -> *)
       (forall c' k' st', 
         cstep (c, k, st) (c', k', st') -> WP c' k' Q R1 R2 st') ->
       WP c k Q R1 R2 st.      
@@ -103,3 +107,18 @@ Fixpoint nocontinue (c : com) : Prop :=
   | CBreak        => True 
   | CCont         => False
   end.
+
+
+Definition simulation (sim : (com * continuation) -> (com * continuation) -> Prop) : Prop := 
+  forall c1 k1 c2 k2,
+    sim (c1, k1) (c2, k2) ->
+  (* (forall st, reducible c1 k1 st -> reducible c2 k2 st) /\ *)
+  (* ((c1, k1) = (CSkip, nil) -> (c2, k2) = (CSkip, nil)) /\
+  ((c1, k1) = (CBreak, nil) -> (c2, k2) = (CBreak, nil)) /\
+  ((c1, k1) = (CCont, nil) -> (c2, k2) = (CCont, nil)) /\ *)
+  (forall st, ~ reducible c1 k1 st -> mstep (c2, k2, st) (c1, k1, st)) /\
+  (forall c1' k1' st st',
+    cstep (c1, k1, st) (c1', k1', st') ->
+    exists c2' k2',
+    cstep (c2, k2, st) (c2', k2', st') /\ sim (c1', k1') (c2', k2')).
+
