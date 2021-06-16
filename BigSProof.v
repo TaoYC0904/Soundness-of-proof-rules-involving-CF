@@ -475,8 +475,26 @@ Proof.
     induction n.
     - (* n = 0 *)
       apply ILB_0; try tauto.
+      remember (seq_sem (ceval c1) (ceval c2)) as d1.
+      remember (skip_sem) as d2.
       destruct H1.
       destruct H4.
+      * (* d1 Break *)
+        subst d1.
+        unfold seq_sem in H4.
+        destruct H4.
+        ++ (* c1 Normal *)
+           right; tauto.
+        ++ (* c1 Break or Cont *)
+           left; tauto.
+      * (* d1 Normal; d2 Break *)
+        destruct H4 as [st3 [? ?]].
+        subst d2.
+        unfold skip_sem in H5.
+        destruct H5; inversion H6.
+        
+        
+      
       
       
     
