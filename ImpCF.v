@@ -65,7 +65,6 @@ Inductive iter_loop_body:
       (exists st3, d1 st1 EK_Normal st3 /\ d2 st3 EK_Break st2) ->
       iter_loop_body d1 d2 n st1 st2
   | ILB_n: forall d1 d2 n st1 st2 st3 n', 
-      n <> Z.to_nat 0 ->
       n = S n' ->
       ((seq_sem d1 d2 st1 EK_Normal st3) \/
       (seq_sem d1 d2 st1 EK_Cont st3)) ->
