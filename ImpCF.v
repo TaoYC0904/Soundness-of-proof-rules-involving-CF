@@ -66,7 +66,8 @@ Inductive iter_loop_body:
       iter_loop_body d1 d2 n st1 st2
   | ILB_n: forall d1 d2 n st1 st2 st3 n', 
       n = S n' ->
-      seq_sem d1 d2 st1 EK_Normal st3 ->
+      ((seq_sem d1 d2 st1 EK_Normal st3) \/
+      (seq_sem d1 d2 st1 EK_Cont st3)) ->
       iter_loop_body d1 d2 n' st3 st2 ->
       iter_loop_body d1 d2 n st1 st2.
 
