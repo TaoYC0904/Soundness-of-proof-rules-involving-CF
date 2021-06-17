@@ -119,11 +119,25 @@ Proof.
     left.
     exists st1; tauto. }
   intros.
+  subst.
+  unfold Assertion_denote, SP in H2.
+  destruct H2 as [st0 [? ?]].
+  specialize (H st0 H0).
+  destruct H as [ek [st2 ?]].
+  exists ek, st2.
+  simpl in H.
+  unfold seq_sem in H.
+  destruct H.
+  + destruct H as [st3 [? ?]].
+    pose proof determinism.
+    specialize (H4 c1 st0 st1 st3 EK_Normal EK_Normal H2 H).
+    destruct H4; subst; tauto.
+  + destruct H.
+    pose proof determinism.
+    specialize (H4 c1 st0 st1 st2 EK_Normal ek H2 H).
+    destruct H4; subst; tauto.
+Qed.
 
-    
-Admitted.
-    
-    
 Theorem seq_inv_valid_bigstep : forall P c1 c2 Q R1 R2,
   total_valid_bigstep P (CSeq c1 c2) Q R1 R2 ->
   (exists Q', (total_valid_bigstep P c1 Q' R1 R2) /\ 
@@ -138,104 +152,6 @@ Proof.
   specialize (H1 P c1 c2 Q R1 R2 Q' H HeqQ').
   tauto.
 Qed.
-
-(* Proof.
-  unfold total_valid_bigstep.
-  intros.
-  exists (SP P c1).
-  remember (SP P c1) as Q'.
-  pose proof seq_c1_valid.
-  specialize (H0 P c1 c2 Q R1 R2 Q' H HeqQ').
-  rename H0  into HLemma.
-  destruct H.
-  split; intros.
-  + (* semantics of c1 *)
-    split; intros.
-    - (* termination *)
-      specialize (H st1 H1).
-      destruct H as [ek [st2 ?]].
-      simpl in H.
-      unfold seq_sem in H.
-      destruct H.
-      * (* c1 normal exit *) 
-        destruct H as [st3 [? ?]].
-        exists EK_Normal, st3.
-        tauto.
-      * (* c1 break or cont *)
-        destruct H.
-        exists ek, st2.
-        tauto.
-    - (* partial validity *)
-      unfold partial_valid_bigstep in H0.
-      unfold partial_valid_bigstep.
-      clear H.
-      intros.
-      destruct ek.
-      ++ (* c1 normal exit *)
-         split; try split; intros; try inversion H2.
-         rewrite HeqQ'.
-         unfold Assertion_denote, SP.
-         exists st1.
-         tauto.
-      ++ (* c1 break exit *)
-         split; try split; intros; try inversion H2.
-         specialize (H0 st1 st2 EK_Break H).
-         assert (ceval (CSeq c1 c2) st1 EK_Break st2).
-         { simpl. unfold seq_sem.
-           right.
-           split; intros; try tauto.
-           unfold not; intros; inversion H3. }
-         specialize (H0 H3).
-         destruct H0 as [? [? ?]].
-         apply H4; tauto.
-      ++ (* c1 cont exit *)
-         split; try split; intros; try inversion H2.
-         specialize (H0 st1 st2 EK_Cont H).
-         assert (ceval (CSeq c1 c2) st1 EK_Cont st2).
-         { simpl. unfold seq_sem.
-           right.
-           split; intros; try tauto.
-           unfold not; intros; inversion H3. }
-         specialize (H0 H3).
-         destruct H0 as [? [? ?]].
-         apply H5; tauto.
-  + (* semantics of c2 *)
-    split.
-    - (* termination *)
-      rewrite HeqQ'.
-      unfold Assertion_denote, SP.
-      intros.
-      destruct H1 as [st0 [? ?]].
-      specialize (H st0 H1).
-      destruct H as [ek [st2 ?]].
-      simpl in H; unfold seq_sem in H.
-      destruct H.
-      * (* c1 Normal *)
-        destruct H as [st3 [? ?]].
-        pose proof determinism.
-        specialize (H4 c1 st0 st1 st3 EK_Normal EK_Normal H2 H).
-        destruct H4; subst.
-        exists ek, st2; tauto.
-      * (* c1 Break or Cont *)
-        destruct H.
-        pose proof determinism.
-        specialize (H4 c1 st0 st2 st1 ek EK_Normal H H2).
-        tauto.
-    - (* partial validity *)
-      clear H.
-      unfold partial_valid_bigstep in H0.
-      unfold partial_valid_bigstep.
-      intros.
-      subst Q'.
-      unfold Assertion_denote, SP in H.
-      destruct H as [st0 [? ?]].
-      specialize (H0 st0 st2 ek H).
-      apply H0.
-      simpl; unfold seq_sem.
-      left.
-      exists st1.
-      split; try tauto.
-Qed. *)
 
 Theorem if_seq_valid_bigstep : forall P b c1 c2 c3 Q R1 R2,
   total_valid_bigstep P (CSeq (CIf b c1 c2) c3) Q R1 R2 ->
@@ -396,7 +312,6 @@ Proof.
           tauto.
 Qed.
 
-
 Lemma nocontinue_nocontexit : forall c st1,
   nocontinue c ->
   ( (exists st2, ceval c st1 EK_Cont st2) -> False).
@@ -533,12 +448,6 @@ Proof.
     - tauto.
 Qed.
 
-Lemma nat_eq: forall n n', S n = S n' -> n = n'.
-Proof.
-  intros.
-  inversion H; tauto.
-Qed.
-
 Lemma loop_nocontinue_partial_valid : forall P c1 c2 Q R1 R2,
   nocontinue c1 ->
   nocontinue c2 ->
@@ -596,7 +505,6 @@ Proof.
   inversion H2.
 Qed.
 
-
 Theorem loop_nocontinue_valid_bigstep : forall P c1 c2 Q R1 R2,
   nocontinue c1 ->
   nocontinue c2 ->
@@ -618,18 +526,44 @@ Proof.
   simpl in H1; simpl.
   unfold for_sem in H1; unfold for_sem.
   destruct H1; split; try tauto.
-  destruct H3 as 
-  
-          
-      
-
-           
-
-
-      
-    
-  
-Admitted.
-
-
-
+  destruct H3 as [n ?].
+  exists n.
+  clear H2.
+  revert st1 H3.
+  induction n.
+  2:{
+    intros.
+    inversion H3; subst.
+    inversion H2; subst n'.
+    pose proof ILB_n.
+    specialize (H1 (ceval c1) (ceval c2) (S n) st1 st2 st4 n).
+    apply H1; try tauto; clear H1.
+    + destruct H4.
+      { left.
+        pose proof add_skip.
+        specialize (H4 (seq_sem (ceval c1) (ceval c2)) st1 EK_Normal st4).
+        tauto. }
+      pose proof nocontinue_nocontexit.
+      specialize (H4 (CSeq c1 c2) st1).
+      exfalso; apply H4; clear H4.
+      { simpl; tauto. }
+      exists st4; simpl.
+      pose proof add_skip.
+      specialize (H4 (seq_sem (ceval c1) (ceval c2)) st1 EK_Cont st4); tauto.
+    + specialize (IHn st4); tauto. }
+  intros.
+  constructor.
+  inversion H3; subst.
+  { destruct H2.
+    + unfold seq_sem in H1.
+      destruct H1.
+      - destruct H1 as [st3 [? ?]].
+        right; exists st3; tauto.
+      - destruct H1.
+        left; tauto.
+    + destruct H1 as [st3 [? ?]].
+      unfold skip_sem in H2.
+      destruct H2.
+      inversion H4. }
+  inversion H2.
+Qed.
