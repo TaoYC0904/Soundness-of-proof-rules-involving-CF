@@ -161,6 +161,13 @@ Inductive cstep: (com * continuation * state) -> (com * continuation * state) ->
 
 Definition mstep : (com * continuation * state) -> (com * continuation * state) -> Prop := clos_refl_trans cstep.
 
+Lemma determinism : forall c st1 st2 st3 ek1 ek2,
+  ceval c st1 ek1 st2 ->
+  ceval c st1 ek2 st3 ->
+  (ek1 = ek2 /\ st2 = st3).
+Admitted.
+  
+
 (* Ltac induction_cstep H :=
   match type of H with
   | ?cstep ?a ?b =>

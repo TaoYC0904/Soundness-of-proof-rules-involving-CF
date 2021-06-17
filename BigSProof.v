@@ -96,38 +96,48 @@ Proof.
       apply H7; tauto.
 Qed.
 
+Lemma seq_c2_valid : forall P c1 c2 Q R1 R2 Q',
+  total_valid_bigstep P (CSeq c1 c2) Q R1 R2 ->
+  Q' = SP P c1 ->
+  total_valid_bigstep Q' c2 Q R1 R2.
+Proof.
+  intros.
+  unfold total_valid_bigstep in H.
+  destruct H.
+  unfold total_valid_bigstep.
+  split.
+  2:{
+    unfold partial_valid_bigstep in H1.
+    unfold partial_valid_bigstep.
+    intros.
+    subst Q'.
+    unfold Assertion_denote, SP in H2.
+    destruct H2 as [st0 [? ?]].
+    specialize (H1 st0 st2 ek H0).
+    apply H1.
+    simpl; unfold seq_sem.
+    left.
+    exists st1; tauto. }
+  intros.
+
+    
+Admitted.
+    
+    
 Theorem seq_inv_valid_bigstep : forall P c1 c2 Q R1 R2,
   total_valid_bigstep P (CSeq c1 c2) Q R1 R2 ->
   (exists Q', (total_valid_bigstep P c1 Q' R1 R2) /\ 
     (total_valid_bigstep Q' c2 Q R1 R2)).
 Proof.
   intros.
-  pose proof same_def_bigstep.
-  unfold iff in H0.
-  specialize (H0 P (CSeq c1 c2) Q R1 R2).
-  destruct H0; clear H1.
-  specialize (H0 H).
-  exists (SP P c1).
-  split.
-  2:{pose proof same_def_bigstep.
-    specialize (H1 (SP P c1) c2 Q R1 R2).
-    unfold iff in H1.
-    destruct H1; clear H1.
-    apply H2; clear H2.
-    intros.
-    unfold Assertion_denote, SP in H1.
-    destruct H1 as [st0 [? ?]].
-    specialize (H0 st0 H1).
-    destruct H0.
-    destruct H0 as [ek [st2 ?]].
-    simpl in H0; unfold seq_sem in H0.
-    
-    
-    
-  
-    
-    
-Admitted.
+  remember (SP P c1) as Q'.
+  exists Q'.
+  pose proof seq_c1_valid.
+  specialize (H0 P c1 c2 Q R1 R2 Q' H HeqQ').
+  pose proof seq_c2_valid.
+  specialize (H1 P c1 c2 Q R1 R2 Q' H HeqQ').
+  tauto.
+Qed.
 
 (* Proof.
   unfold total_valid_bigstep.
@@ -522,7 +532,12 @@ Proof.
       tauto.
     - tauto.
 Qed.
-      
+
+Lemma nat_eq: forall n n', S n = S n' -> n = n'.
+Proof.
+  intros.
+  inversion H; tauto.
+Qed.
 
 Lemma loop_nocontinue_partial_valid : forall P c1 c2 Q R1 R2,
   nocontinue c1 ->
@@ -544,36 +559,43 @@ Proof.
   exists n.
   remember (ceval c1) as d1.
   remember (ceval c2) as d2.
-  revert st1 H2 H3.
+  clear H2.
+  revert st1 H3.
   induction n.
   2:{
     intros.
-    specialize (IHn st1 H2).
-    destruct H3.
-    2:{
-      subst n0 d1 d2.
-      pose proof ILB_n.
-      specialize (H3 (seq_sem (ceval c1) (ceval c2)) skip_sem (S n') st1 st2 st3 n').
-      apply H3; try tauto.
-      + destruct H4.
-        - pose proof add_skip.
-          specialize (H6 (seq_sem (ceval c1) (ceval c2)) st1 EK_Normal st3).
-          unfold iff in H6; destruct H6; clear H7.
-          left; tauto.
-        - pose proof nocontinue_nocontexit.
-          specialize (H6 (CSeq c1 c2) st1).
-          exfalso.
-          apply H6.
-          { simpl. tauto. }
-          exists st3.
-          simpl. tauto.
-     +
-        
-      
+    pose proof ILB_n.
+    inversion H3; subst.
+    inversion H4; subst n'.
+    specialize (H2 (seq_sem (ceval c1) (ceval c2)) skip_sem (S n) st1 st2 st4 n).
+    apply H2; clear H2; try tauto.
+    + destruct H5.
+      { left.
+        pose proof add_skip.
+        specialize (H2 (seq_sem (ceval c1) (ceval c2)) st1 EK_Normal st4).
+        tauto. }
+      pose proof nocontinue_nocontexit.
+      specialize (H2 (CSeq c1 c2) st1).
+      exfalso; apply H2; clear H2.
+      { simpl; tauto. }
+      exists st4; simpl; tauto.
+    + specialize (IHn st4).
+      apply IHn.
+      tauto. }
+  intros.
+  inversion H3; subst.
+  { constructor.
+    destruct H2.
+    + left.
+      unfold seq_sem.
+      right; split; try tauto.
+      unfold not; intros; inversion H2.
+    + left.
+      unfold seq_sem.
+      left; tauto. }
+  inversion H2.
+Qed.
 
-    
-  
-  
 
 Theorem loop_nocontinue_valid_bigstep : forall P c1 c2 Q R1 R2,
   nocontinue c1 ->
@@ -582,25 +604,25 @@ Theorem loop_nocontinue_valid_bigstep : forall P c1 c2 Q R1 R2,
   total_valid_bigstep P (CFor c1 c2) Q R1 R2.
 Proof.
   intros.
-  pose proof same_def_bigstep.
-  specialize (H2 P (CFor (CSeq c1 c2) CSkip) Q R1 R2).
-  unfold iff in H2.
-  destruct H2; clear H3.
-  specialize (H2 H1); clear H1.
-  pose proof same_def_bigstep.
-  specialize (H1 P (CFor c1 c2) Q R1 R2).
-  unfold iff in H1.
-  destruct H1; clear H1.
-  apply H3; clear H3.
+  pose proof loop_nocontinue_partial_valid.
+  unfold total_valid_bigstep in H1.
+  unfold total_valid_bigstep.
+  destruct H1.
+  split.
+  2:{ specialize (H2 P c1 c2 Q R1 R2 H H0 H3); tauto. }
+  clear H2 H3.
   intros.
-  specialize (H2 st1 H1).
-  destruct H2.
+  specialize (H1 st1 H2).
+  destruct H1 as [ek [st2 ?]].
+  exists ek, st2.
+  simpl in H1; simpl.
+  unfold for_sem in H1; unfold for_sem.
+  destruct H1; split; try tauto.
+  destruct H3 as 
   
           
       
-          
-       
-      
+
            
 
 
@@ -608,4 +630,6 @@ Proof.
     
   
 Admitted.
+
+
 
