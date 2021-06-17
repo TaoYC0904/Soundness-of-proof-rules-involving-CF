@@ -59,11 +59,10 @@ Inductive iter_loop_body:
   (state -> exit_kind -> state -> Prop) -> 
   (state -> exit_kind -> state -> Prop) ->
   nat -> state -> state -> Prop :=
-  | ILB_0: forall d1 d2 n st1 st2,
-      n = Z.to_nat 0 ->
+  | ILB_0: forall d1 d2 st1 st2,
       (d1 st1 EK_Break st2) \/
       (exists st3, d1 st1 EK_Normal st3 /\ d2 st3 EK_Break st2) ->
-      iter_loop_body d1 d2 n st1 st2
+      iter_loop_body d1 d2 0 st1 st2
   | ILB_n: forall d1 d2 n st1 st2 st3 n', 
       n = S n' ->
       ((seq_sem d1 d2 st1 EK_Normal st3) \/
