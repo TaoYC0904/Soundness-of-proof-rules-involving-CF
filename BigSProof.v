@@ -62,11 +62,56 @@ Proof.
           unfold not in H0.
           exfalso; apply H0.
           exists ek, st'; tauto. }
-        
-      
-      
-        
-        
+        clear H0.
+        destruct H as [ek [st3 ?]].
+        destruct H.
+        { destruct H as [st4 [? ?]].
+          pose proof determinism.
+          specialize (H5 c1 st1 st2 st4 EK_Normal EK_Normal H3 H).
+          destruct H5; subst st4; clear H5.
+          specialize (H4 ek st3); contradiction. }
+        { destruct H.
+          pose proof determinism.
+          specialize (H5 c1 st1 st2 st3 EK_Normal ek H3 H).
+          destruct H5; subst ek; contradiction. } }
+      intros st3; split; try split; intros.
+      * (* c2 Normal *)
+        assert (ceval (CSeq c1 c2) st1 EK_Normal st3).
+        { simpl; unfold seq_sem.
+          left; exists st2; tauto. }
+        specialize (H1 st1 st3 EK_Normal H2 H4).
+        tauto.
+      * (* c2 Break *)
+        assert (ceval (CSeq c1 c2) st1 EK_Break st3).
+        { simpl; unfold seq_sem.
+          left; exists st2; tauto. }
+        specialize (H1 st1 st3 EK_Break H2 H4).
+        tauto.
+      * (* c2 Cont *)
+        assert (ceval (CSeq c1 c2) st1 EK_Cont st3).
+        { simpl; unfold seq_sem.
+          left; exists st2; tauto. }
+        specialize (H1 st1 st3 EK_Cont H2 H4).
+        tauto.
+    - (* c1 Break *)
+      split; try split; intros; try inversion H4.
+      clear H4.
+      assert (ceval (CSeq c1 c2) st1 EK_Break st2).
+      { simpl; unfold seq_sem.
+        right; split; try tauto.
+        unfold not; intros; inversion H4. }
+      specialize (H1 st1 st2 EK_Break H2 H4).
+      tauto.
+    - (* c1 Cont *)
+      split; try split; intros; try inversion H4.
+      clear H4.
+      assert (ceval (CSeq c1 c2) st1 EK_Cont st2).
+      { simpl; unfold seq_sem.
+        right; split; try tauto.
+        unfold not; intros; inversion H4. }
+      specialize (H1 st1 st2 EK_Cont H2 H4).
+      tauto.
+Qed.
 
 Lemma seq_c2_valid : forall P c1 c2 Q R1 R2 Q',
   total_valid_bigstep P (CSeq c1 c2) Q R1 R2 ->
@@ -100,7 +145,7 @@ Theorem seq_inv_valid_bigstep : forall P c1 c2 Q R1 R2,
     (total_valid_bigstep Q' c2 Q R1 R2)).
 Proof.
   intros.
-  remember (SP P c1) as Q'.
+  remember (WP c2 Q R1 R2) as Q'.
   exists Q'.
   pose proof seq_c1_valid.
   specialize (H0 P c1 c2 Q R1 R2 Q' H HeqQ').
