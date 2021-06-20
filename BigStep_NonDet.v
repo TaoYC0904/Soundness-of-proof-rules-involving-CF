@@ -175,7 +175,7 @@ Definition seq_sem (DC1 DC2 : com_denote) : com_denote := {|
   com_error :=
     fun st =>
       (exists st', com_term DC1 st EK_Normal st' /\ com_error DC2 st') \/
-      com_error DC2 st |}.
+      com_error DC1 st |}.
 
 Definition if_sem (DB : bexp_denote) (DC1 DC2 : com_denote) : com_denote := {|
   com_term :=
@@ -262,8 +262,7 @@ Definition partial_valid (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop 
     (ek = EK_Cont   -> Assertion_denote st2 R2).
 
 Definition total_valid (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
-  (forall st1, Assertion_denote st1 P -> 
-    exists ek st2, com_term (ceval c) st1 ek st2) /\
+  (forall st1, Assertion_denote st1 P -> ~ com_error (ceval c) st1) /\
   partial_valid P c Q R1 R2.
 
 End Denote_Embeddings.
@@ -288,44 +287,109 @@ Proof.
   intros.
   unfold total_valid in H.
   unfold total_valid.
-  destruct H; split.
-  + (* termination *)
+  destruct H.
+  split.
+  + (* safety *)
     intros.
     specialize (H st1 H2).
-    destruct H as [ek [st2 ?]].
-    simpl in H; destruct H.
-    - (* c1 Normal *)
-      destruct H as [st3 [? ?]].
-      exists EK_Normal, st3; tauto.
-    - (* c1 Break or Cont *)
-      destruct H.
-      exists ek, st2; tauto.
+    simpl in H.
+    unfold not; intros; apply H.
+    right; tauto.
   + (* partial validity *)
     unfold partial_valid in H1.
     unfold partial_valid.
     intros.
     destruct ek.
-    - (* c1 Normal *)
-      split; try split; intros; try inversion H4.
+    - (* c1 Normal *) 
+      split; try split; intros; inversion H4.
       clear H4.
       subst Q'; unfold Assertion_denote, WP.
       split.
-      { (* safety *)
-        pose proof classic (com_error (ceval c2) st2).
-        destruct H0; try tauto.
+      { (* c2 safety *)
+        unfold not; intros.
         specialize (H st1 H2).
-        destruct H as [ek [st3 ?]].
-        
+        simpl in H; apply H.
+        left; exists st2; tauto. }
+      intros st3.
+      split; try split; intros.
+      * (* c2 Normal *) 
+        assert (com_term (ceval (CSeq c1 c2)) st1 EK_Normal st3).
+        { simpl. 
+          left; exists st2; tauto. }
+        specialize (H1 st1 EK_Normal st3 H2 H4).
+        destruct H1 as [? [? ?]]; tauto.
+      * (* c2 Break *)
+        assert (com_term (ceval (CSeq c1 c2)) st1 EK_Break st3).
+        { simpl.
+          left; exists st2; tauto. }
+        specialize (H1 st1 EK_Break st3 H2 H4).
+        destruct H1 as [? [? ?]]; tauto. 
+      * (* c2 Cont *)
+        assert (com_term (ceval (CSeq c1 c2)) st1 EK_Cont st3).
+        { simpl.
+          left; exists st2; tauto. }
+        specialize (H1 st1 EK_Cont st3 H2 H4).
+        destruct H1 as [? [? ?]]; tauto. 
+    - (* c1 Break *)
+      split; try split; intros; inversion H4.
+      clear H4.
+      assert (com_term (ceval (CSeq c1 c2)) st1 EK_Break st2).
+      { simpl.
+        right; split; try tauto.
+        unfold not; intros; inversion H4. }
+      specialize (H1 st1 EK_Break st2 H2 H4).
+      destruct H1 as [? [? ?]]; tauto.
+    - (* c1 Cont *)
+      split; try split; intros; inversion H4.
+      clear H4.
+      assert (com_term (ceval (CSeq c1 c2)) st1 EK_Cont st2).
+      { simpl.
+        right; split; try tauto. 
+        unfold not; intros; inversion H4. }
+      specialize (H1 st1 EK_Cont st2 H2 H4).
+      destruct H1 as [? [? ?]]; tauto.
+Qed.
 
-
-
-
+Lemma seq_c2 : forall P c1 c2 Q Q' R1 R2,
+  total_valid P (CSeq c1 c2) Q R1 R2 ->
+  Q' = WP c2 Q R1 R2 ->
+  total_valid Q' c2 Q R1 R2.
+Proof.
+  intros.
+  unfold total_valid in H.
+  unfold total_valid.
+  destruct H.
+  split.
+  + (* safety *)
+    intros.
+    unfold not; intros.
+    subst Q'; unfold Assertion_denote, WP in H2.
+    destruct H2; contradiction.
+  + (* partial validity *)
+    unfold partial_valid in H1.
+    unfold partial_valid.
+    intros.
+    subst Q'; unfold Assertion_denote, WP in H2.
+    destruct H2.
+    specialize (H2 st2).
+    destruct H2 as [? [? ?]].
+    destruct ek; split; try split; intros; inversion H6; tauto.
+Qed.
 
 Theorem seq_inv_sound_bigstep : forall P c1 c2 Q R1 R2,
   total_valid P (CSeq c1 c2) Q R1 R2 ->
   (exists Q', total_valid P c1 Q' R1 R2 /\
               total_valid Q' c2 Q R1 R2).
 Proof.
+  intros.
+  exists (WP c2 Q R1 R2).
+  remember (WP c2 Q R1 R2) as Q'.
+  split.
+  + pose proof seq_c1.
+    specialize (H0 P c1 c2 Q Q' R1 R2 H HeqQ'); tauto.
+  + pose proof seq_c2.
+    specialize (H0 P c1 c2 Q Q' R1 R2 H HeqQ'); tauto.
+Qed.
 
 
 
