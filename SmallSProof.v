@@ -5,73 +5,62 @@ Require Import Shallow.Embeddings.
 
 Require Import Coq.Logic.ClassicalEpsilon.
 Require Import Coq.Classes.RelationClasses.
+Require Import Coq.Relations.Operators_Properties.
 
 Import Assertion_S.
 Import SmallS.
 
+Definition simulation (sim : (com * continuation) -> (com * continuation) -> Prop) : Prop := forall c1 k1 c2 k2,
+  sim (c1, k1) (c2, k2) ->  (* c2 simulates c1 *)
+  (Halt c1 k1 -> (c1, k1) = (c2, k2)) /\
+  (~ Halt c1 k1 -> forall st, ~ reducible c1 k1 st -> ~ reducible c2 k2) /\
+  (* (Error c1 k1 -> Error c2 k2) /\ *)
+  (forall c1' k1' st st',
+    cstep (c1, k1, st) (c1', k1', st') ->
+    exists c2' k2',
+    mstep (c2, k2, st) (c2', k2', st') /\ sim (c1', k1') (c2', k2')).
+
+
 Lemma wp_sim : forall c1 c2 k1 k2 Q Rb Rc st sim,
   simulation sim ->
-  (* sim (c1, k1) (c2, k2) -> *)
-  Symmetric sim ->
   sim (c2, k2) (c1, k1) ->
   WP c1 k1 Q Rb Rc st ->
   WP c2 k2 Q Rb Rc st.
 Proof.
   intros.
-  rename H0 into Hsym.
-  rename H1 into H0.
-  rename H2 into H1.
   revert c2 k2 H0.
   induction H1; intros.
   - unfold simulation in H.
+    pose proof H1 as Hsim.
     apply H in H1.
-    pose proof excluded_middle_informative (reducible c2 k2 st) as Hred.
-    destruct Hred as [Hred | Hred].
-    + destruct H1 as [_ ?].
-      apply WP_Pre; auto.
-      intros.
-      apply H1 in H2.
-      destruct H2 as (c1' & k1' & ? & _).
-      inversion H2.
+    pose proof halt_choice c2 k2.
+    destruct H2 as [? | [? | ?]].
     + destruct H1 as [? _].
-      apply H1 in Hred.
-      unfold mstep in Hred.
-      rewrite rt_rt1n_iff in Hred.
-      inversion Hred; subst.
-      * apply WP_Ter1; auto.
-      * inversion H2. 
-
-    (* destruct H1 as [? _].
-    assert (~ reducible CSkip nil st).
-    { unfold not; intros. destruct H2 as (? & ? & ? & ?). inversion H2. }
-    specialize (H1 st H2).
-    unfold mstep in H1.
-    rewrite rt_rt1n_iff in H1.
-    remember (c2, k2, st) as prog.
-    remember (@pair (prod com continuation) state (@pair com continuation CSkip (@nil KElements)) st) as term.
-    remember st as st0.
-    rewrite Heqst0 in Heqprog; rewrite Heqst0; clear Heqst0.
-    revert dependent st.
-    revert dependent k2.
-    revert c2 .
-    induction H1; subst; intros.
-    + inversion Heqprog; subst. apply WP_Ter1; auto.
-    + destruct y as [[c2' k2'] st']; subst.
-      specialize (IHclos_refl_trans_1n eq_refl).
-       (* c2' k2' st' eq_refl). *)
-      apply WP_Pre.
-      * exists c2', k2', st'. auto.
-      *  
-
-    inversion H; subst.
-    apply WP_Ter1. auto. *)
-    
+      specialize (H1 H2).
+      inversion H1; subst.
+      apply WP_Ter1; auto.
+    + destruct H1 as [_ [? _]].
+      specialize (H1 H2).
+      inversion H1.
+      exfalso; apply H3.
+      unfold Halt.
+      left. unfold NHalt. auto.
+    + destruct H1 as [_ [_ ?]].
+      destruct H2 as (? & ? & ? & ? & ?).
+      apply H1 in H2.
+      destruct H2 as (? & ? & ? & ?).
+      unfold mstep in H2.
+      apply clos_trans_t1n_iff in H2.
+      inversion H2; inversion H4.
   - admit.
   - admit.
   - unfold simulation in H.
-    unfold Symmetric in Hsym.  
     apply WP_Pre.
-    + apply Hsym in H3.
+    + apply H in H3.
+      destruct H3 as [_ [? _]].
+      unfold Error in H3.
+    
+    apply Hsym in H3.
       specialize (H _ _ _ _ H3) as [_ ?].
       destruct H0 as [c' [k' [st' ?]]].
       specialize (H _ _ _ _ H0) as (c2' & k2' & ? & ?).
