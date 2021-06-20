@@ -1,5 +1,5 @@
 Require Import Coq.Lists.List.
-Require Import Shallow.Imp Shallow.lib.RTClosure.
+Require Import Shallow.Imp Shallow.Embeddings.
 
 Inductive aexp : Type :=
   | ANum (n : Z)
@@ -244,6 +244,88 @@ Fixpoint ceval (c : com) : com_denote :=
   end.
 
 End Denote_Com.
+
+Module Denote_Embeddings.
+Import Denote_Com.
+
+Definition Assertion : Type := state -> Prop.
+
+Definition Assertion_denote : state -> Assertion -> Prop :=
+  fun st P => P st.
+
+Definition partial_valid (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
+  forall st1 ek st2,
+    Assertion_denote st1 P ->
+    com_term (ceval c) st1 ek st2 ->
+    (ek = EK_Normal -> Assertion_denote st2 Q) /\
+    (ek = EK_Break  -> Assertion_denote st2 R1) /\
+    (ek = EK_Cont   -> Assertion_denote st2 R2).
+
+Definition total_valid (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
+  (forall st1, Assertion_denote st1 P -> 
+    exists ek st2, com_term (ceval c) st1 ek st2) /\
+  partial_valid P c Q R1 R2.
+
+End Denote_Embeddings.
+
+Module rules_sound.
+Import Denote_Com.
+Import Denote_Embeddings.
+
+Definition WP (c : com) (Q R1 R2 : Assertion) : state -> Prop :=
+  fun st =>
+    (~ (com_error (ceval c) st)) /\
+    (forall st',
+      (com_term (ceval c) st EK_Normal st' -> Assertion_denote st' Q) /\
+      (com_term (ceval c) st EK_Break  st' -> Assertion_denote st' R1) /\
+      (com_term (ceval c) st EK_Cont   st' -> Assertion_denote st' R2)).
+
+Lemma seq_c1 : forall P c1 c2 Q Q' R1 R2,
+  total_valid P (CSeq c1 c2) Q R1 R2 ->
+  Q' = WP c2 Q R1 R2 ->
+  total_valid P c1 Q' R1 R2.
+Proof.
+  intros.
+  unfold total_valid in H.
+  unfold total_valid.
+  destruct H; split.
+  + (* termination *)
+    intros.
+    specialize (H st1 H2).
+    destruct H as [ek [st2 ?]].
+    simpl in H; destruct H.
+    - (* c1 Normal *)
+      destruct H as [st3 [? ?]].
+      exists EK_Normal, st3; tauto.
+    - (* c1 Break or Cont *)
+      destruct H.
+      exists ek, st2; tauto.
+  + (* partial validity *)
+    unfold partial_valid in H1.
+    unfold partial_valid.
+    intros.
+    destruct ek.
+    - (* c1 Normal *)
+      split; try split; intros; try inversion H4.
+      clear H4.
+      subst Q'; unfold Assertion_denote, WP.
+      split.
+      { (* safety *)
+        pose proof classic (com_error (ceval c2) st2).
+        destruct H0; try tauto.
+        specialize (H st1 H2).
+        destruct H as [ek [st3 ?]].
+        
+
+
+
+
+
+Theorem seq_inv_sound_bigstep : forall P c1 c2 Q R1 R2,
+  total_valid P (CSeq c1 c2) Q R1 R2 ->
+  (exists Q', total_valid P c1 Q' R1 R2 /\
+              total_valid Q' c2 Q R1 R2).
+Proof.
 
 
 
