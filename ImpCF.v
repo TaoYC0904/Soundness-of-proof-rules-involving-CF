@@ -1,4 +1,5 @@
 Require Import Coq.Lists.List.
+Require Import Coq.Relations.Relation_Operators.
 Require Import Shallow.Imp Shallow.ImpExt Shallow.lib.RTClosure.
 
 Inductive com : Type :=
@@ -157,9 +158,25 @@ Inductive cstep: (com * continuation * state) -> (com * continuation * state) ->
   | CS_ForBreak : forall c1 c2 k st,
       cstep (CBreak, (KLoop1 c1 c2) :: k, st)
             (CSkip, k, st).
-            
 
-Definition mstep : (com * continuation * state) -> (com * continuation * state) -> Prop := clos_refl_trans cstep.
+Definition NHalt c k : Prop := c = CSkip /\ k = @nil KElements.
+
+Definition BHalt c k : Prop := c = CBreak /\ k = @nil KElements.
+
+Definition CHalt c k : Prop := c = CCont /\ k = @nil KElements.
+
+Definition Halt c k : Prop := NHalt c k \/ BHalt c k \/ CHalt c k.
+
+Definition reducible c k st : Prop := (exists c' k' st', cstep (c, k, st) (c', k', st')).
+
+Definition Error c k : Prop := ~ Halt c k /\ forall st, ~ reducible c k st.
+
+Definition mstep : (com * continuation * state) -> (com * continuation * state) -> Prop := clos_trans _ cstep.
+
+Lemma halt_choice : forall c k,
+  Halt c k \/ Error c k \/ exists st, reducible c k st.
+Proof.
+Admitted.
 
 Lemma determinism : forall c st1 st2 st3 ek1 ek2,
   ceval c st1 ek1 st2 ->

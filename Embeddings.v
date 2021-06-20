@@ -34,9 +34,6 @@ Definition total_valid_bigstep (P : Assertion) (c : com) (Q R1 R2 : Assertion) :
 
 End BigS.
 
-
-Definition reducible c k st : Prop := (exists c' k' st', cstep (c, k, st) (c', k', st')).
-
 Module SmallS.
 
 Inductive WP : com -> continuation -> Assertion -> Assertion -> Assertion
