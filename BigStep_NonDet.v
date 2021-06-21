@@ -193,8 +193,9 @@ Fixpoint iter_loop_body (DC1 DC2 : com_denote) (n : nat) : com_denote :=
   | O => {|
       com_term := 
         fun st1 ek st2 =>
-          (com_term DC1 st1 EK_Break st2) \/
-          (exists st3, com_term DC1 st1 EK_Normal st3 /\ com_term DC2 st3 EK_Break st2);
+          ((com_term DC1 st1 EK_Break st2) \/
+          (exists st3, com_term DC1 st1 EK_Normal st3 /\ com_term DC2 st3 EK_Break st2)) /\
+          ek = EK_Normal;
       com_error := 
         fun st =>
           (com_error DC1 st) \/
@@ -202,9 +203,10 @@ Fixpoint iter_loop_body (DC1 DC2 : com_denote) (n : nat) : com_denote :=
   | S n' => {|
       com_term :=
         fun st1 ek st2 => exists st3,
-          (com_term (seq_sem DC1 DC2) st1 EK_Normal st3 \/
-           com_term (seq_sem DC1 DC2) st1 EK_Cont st3) /\
-          com_term (iter_loop_body DC1 DC2 n') st3 ek st2;
+          ((com_term (seq_sem DC1 DC2) st1 EK_Normal st3 \/
+            com_term (seq_sem DC1 DC2) st1 EK_Cont st3) /\
+          com_term (iter_loop_body DC1 DC2 n') st3 ek st2) /\
+          ek = EK_Normal;
       com_error :=
         fun st => exists st',
           (com_term (seq_sem DC1 DC2) st EK_Normal st' \/
@@ -391,20 +393,141 @@ Proof.
     specialize (H0 P c1 c2 Q Q' R1 R2 H HeqQ'); tauto.
 Qed.
 
+Theorem if_seq_valid_bigstep : forall P b c1 c2 c3 Q R1 R2,
+  total_valid P (CSeq (CIf b c1 c2) c3) Q R1 R2 ->
+  total_valid P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2.
+Proof.
+  intros.
+  unfold total_valid in H.
+  unfold total_valid.
+  destruct H.
+  split.
+  + (* safety *)
+    intros.
+    unfold not; intros.
+    simpl in H2.
+    specialize (H st1 H1).
+    apply H.
+    destruct H2 as [? | [? | ?]].
+    - (* beval b error *)
+      simpl. tauto.
+    - (* b true *)
+      destruct H2.
+      destruct H3.
+      * (* c3 error *)
+        destruct H3 as [st' [? ?]].
+        simpl. left.
+        exists st'. 
+        split; tauto.
+      * (* c1 error *)
+        simpl. tauto.
+    - (* b false *)
+      destruct H2.
+      destruct H3.
+      * (* c3 error *) 
+        destruct H3 as [st' [? ?]].
+        simpl. left.
+        exists st'. tauto.
+      * (* c2 error *)
+        simpl. tauto.
+  + (* partial validity *)
+    unfold partial_valid in H0.
+    unfold partial_valid.
+    intros.
+    specialize (H0 st1 ek st2 H1).
+    apply H0; clear H0.
+    simpl in H2. simpl.
+    destruct H2.
+    - (* b true *)
+      destruct H0.
+      destruct H2.
+      * (* c1 Normal *)
+        destruct H2 as [st3 [? ?]].
+        left. exists st3. tauto.
+      * (* c1 Break or Cont *)
+        tauto.
+    - (* b false *)
+      destruct H0.
+      destruct H2.
+      * (* c2 Normal *)
+        destruct H2 as [st3 [? ?]].
+        left. exists st3. tauto.
+      * (* c2 Break or Cont *)  
+        tauto.
+Qed.
 
+Fixpoint nocontinue (c : com) : Prop :=
+  match c with
+  | CSkip         => True
+  | CAss _ _      => True
+  | CSeq c1 c2    => (nocontinue c1) /\ (nocontinue c2)
+  | CIf b c1 c2   => (nocontinue c1) /\ (nocontinue c2)
+  | CFor c1 c2    => (nocontinue c1) /\ (nocontinue c2)
+  | CBreak        => True 
+  | CCont         => False
+  end.
 
+Lemma nocontinue_nocontexit : forall (c : com) st1,
+  nocontinue c ->
+  ~(exists st2, com_term (ceval c) st1 EK_Cont st2).
+Proof.
+  intros.
+  revert st1; induction c; unfold not; intros.
+  + destruct H0 as [st2 ?]. simpl in H0. destruct H0. inversion H1.
+  + destruct H0 as [st2 ?]. simpl in H0. destruct H0 as [? [? ?]]. inversion H2.
+  + simpl in H; destruct H.
+    destruct H0 as [st2 ?].
+    simpl in H0. destruct H0.
+    - destruct H0 as [st3 [? ?]].
+      specialize (IHc2 H1 st3).
+      apply IHc2. exists st2. tauto.
+    - destruct H0 as [st3 ?].
+      specialize (IHc1 H st1).
+      apply IHc1. exists st2. tauto.
+  + simpl in H; destruct H.
+    destruct H0 as [st2 ?].
+    simpl in H0. destruct H0.
+    - destruct H0.
+      specialize (IHc1 H st1).
+      apply IHc1. exists st2. tauto.
+    - destruct H0.
+      specialize (IHc2 H1 st1).
+      apply IHc2. exists st2. tauto.
+  + simpl in H; destruct H.
+    destruct H0 as [st2 ?].
+    simpl in H0. destruct H0 as [n ?].
+    destruct n; simpl in H0; destruct H0. try inversion H2.
+    destruct H0. inversion H2.
+  + destruct H0 as [st2 ?].
+    simpl in H0.
+    destruct H0. inversion H1.
+  + inversion H.
+Qed.
 
-
-
-
-
-
-
-
-
-
-
-
-
+Theorem nocontinue_valid_bigstep : forall P c Q R1 R2 R2',
+  nocontinue c ->
+  total_valid P c Q R1 R2 ->
+  total_valid P c Q R1 R2'.
+Proof.
+  intros.
+  unfold total_valid in H0.
+  unfold total_valid.
+  destruct H0.
+  split.
+  + intros.
+    specialize (H0 st1 H2); tauto.
+  + unfold partial_valid in H1.
+    unfold partial_valid.
+    intros.
+    specialize (H1 st1 ek st2 H2 H3).
+    destruct H1 as [? [? ?]].
+    split; try split; try tauto.
+    intros; subst.
+    pose proof nocontinue_nocontexit.
+    specialize (H6 c st1 H).
+    exfalso; apply H6.
+    exists st2; tauto.
+Qed.
+  
 
 
