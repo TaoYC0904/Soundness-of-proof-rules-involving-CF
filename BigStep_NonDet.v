@@ -528,6 +528,134 @@ Proof.
     exfalso; apply H6.
     exists st2; tauto.
 Qed.
-  
 
+Lemma add_skip: forall c st1 ek st2,
+  com_term (ceval c) st1 ek st2 <-> 
+    com_term (ceval (CSeq c CSkip)) st1 ek st2.
+Proof.
+  intros.
+  unfold iff; split; intros.
+  + (* add skip *)
+    simpl.
+    destruct ek.
+    - (* c Normal *)
+      left; exists st2; tauto.
+    - (* c Break *)
+      right; split; try tauto.
+      unfold not; intros; inversion H0.
+    - (* c Cont *)
+      right; split; try tauto.
+      unfold not; intros; inversion H0.
+  + (* sub skip *)
+    simpl in H.
+    destruct H.
+    - (* c1 Normal *)
+      destruct H as [st3 [? [? ?]]]; subst; tauto.
+    - (* c1 Break or Cont *)
+      tauto.
+Qed.
 
+Theorem loop_nocontinue_valid_bigstep : forall P c1 c2 Q R1 R2,
+  nocontinue c1 ->
+  nocontinue c2 ->
+  total_valid P (CFor (CSeq c1 c2) CSkip) Q R1 R2 ->
+  total_valid P (CFor c1 c2) Q R1 R2.
+Proof.
+  intros.
+  unfold total_valid in H1.
+  unfold total_valid.
+  destruct H1; split.
+  + (* safety *)
+    intros.
+    specialize (H1 st1 H3).
+    unfold not; intros; apply H1.
+    simpl in H4; simpl.
+    destruct H4 as [n ?].
+    exists n.
+    clear H1 H2 H3.
+    revert st1 H4.
+    induction n.
+    - (* n = O *)
+      intros.
+      simpl in H4; simpl.
+      destruct H4.
+      * (* c1 error *)
+        tauto.
+      * (* c2 error *)
+        destruct H1 as [st2 [? ?]].
+        left. left. exists st2; tauto.
+    - (* n = S n'*) 
+      intros.
+      inversion H4; subst; clear H4.
+      rename x into st2.
+      destruct H1. destruct H1.
+      2:{
+        assert (nocontinue (CSeq c1 c2)).
+        { simpl. tauto. }
+        pose proof nocontinue_nocontexit.
+        specialize (H4 (CSeq c1 c2) st1 H3).
+        exfalso; apply H4; exists st2; tauto. }
+      specialize (IHn st2 H2).
+      clear H2.
+      simpl in H1. destruct H1.
+      * (* c1 Normal *)
+        destruct H1 as [st3 [? ?]].
+        simpl. 
+        exists st2; split; try tauto.
+        left. left. 
+        exists st2. split; try split; try tauto.
+        left. exists st3. tauto.
+      * (* c1 Break or Cont *)
+        destruct H1. contradiction.
+  + (* partial validity *)  
+    unfold partial_valid in H2.
+    unfold partial_valid.
+    intros.
+    specialize (H2 st1 ek st2 H3).
+    apply H2; clear H1 H2 H3.
+    simpl in H4; simpl.
+    destruct H4 as [n ?].
+    exists n.
+    revert st1 H1.
+    induction n.
+    - (* n = O *)
+      intros.
+      simpl in H1. 
+      destruct H1; subst.
+      destruct H1.
+      * (* c1 Break *)
+        simpl. split; try tauto.
+        left. right. 
+        split; try tauto.
+        unfold not; intros; inversion H2.
+      * (* c2 Break *)
+        simpl. split; try tauto.
+    - (* n = S n' *) 
+      intros.
+      simpl in H1.
+      destruct H1 as [st3 [? ?]]; subst.
+      destruct H1.
+      specialize (IHn st3 H2); clear H2.
+      destruct H1.
+      2:{ (* first iteration Cont *)
+        destruct H1.
+        * destruct H1 as [st4 [? ?]].
+          pose proof nocontinue_nocontexit.
+          specialize (H3 c2 st4 H0).
+          exfalso; apply H3.
+          exists st3; tauto.
+        * destruct H1.
+          pose proof nocontinue_nocontexit.
+          specialize (H3 c1 st1 H).
+          exfalso; apply H3.
+          exists st3; tauto. }
+      (* first iteration Normal *)
+      destruct H1.
+      2:{ destruct H1. contradiction. }
+      destruct H1 as [st4 [? ?]].
+      simpl. exists st3.
+      split; try split; try tauto.
+      left. left. exists st3.
+      split; try split; try tauto.
+      left. exists st4. tauto.
+Qed. 
