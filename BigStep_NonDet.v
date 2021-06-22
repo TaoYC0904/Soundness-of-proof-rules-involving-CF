@@ -393,7 +393,7 @@ Proof.
     specialize (H0 P c1 c2 Q Q' R1 R2 H HeqQ'); tauto.
 Qed.
 
-Theorem if_seq_valid_bigstep : forall P b c1 c2 c3 Q R1 R2,
+Theorem if_seq_sound_bigstep : forall P b c1 c2 c3 Q R1 R2,
   total_valid P (CSeq (CIf b c1 c2) c3) Q R1 R2 ->
   total_valid P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2.
 Proof.
@@ -504,7 +504,7 @@ Proof.
   + inversion H.
 Qed.
 
-Theorem nocontinue_valid_bigstep : forall P c Q R1 R2 R2',
+Theorem nocontinue_sound_bigstep : forall P c Q R1 R2 R2',
   nocontinue c ->
   total_valid P c Q R1 R2 ->
   total_valid P c Q R1 R2'.
@@ -555,7 +555,7 @@ Proof.
       tauto.
 Qed.
 
-Theorem loop_nocontinue_valid_bigstep : forall P c1 c2 Q R1 R2,
+Theorem loop_nocontinue_sound_bigstep : forall P c1 c2 Q R1 R2,
   nocontinue c1 ->
   nocontinue c2 ->
   total_valid P (CFor (CSeq c1 c2) CSkip) Q R1 R2 ->
