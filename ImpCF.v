@@ -163,6 +163,13 @@ Inductive cstep: (com * continuation * state) -> (com * continuation * state) ->
             (CSkip, k, st)
 .
 
+Lemma cstep_ctx_step: forall c k st c' k' st' k'',
+  cstep (c, k, st) (c', k', st') ->
+  cstep (c, k ++ k'', st) (c', k' ++ k'', st').
+Proof.
+  inversion 1; subst; constructor; auto.
+Qed.
+
 Inductive irreducible : com -> continuation -> state -> Prop :=
 | IR_ForSkip : forall c1 c2 k st,
     irreducible CSkip (KLoop1 c1 c2 :: k) st
@@ -192,7 +199,7 @@ Ltac auto_halt :=
 
 Definition reducible c k st : Prop := (exists c' k' st', cstep (c, k, st) (c', k', st')).
 
-Definition Error c k st : Prop := ~ Halt c k /\ irreducible c k st.
+(* Definition Error c k st : Prop := ~ Halt c k /\ irreducible c k st. *)
 
 Definition mstep : (com * continuation * state) -> (com * continuation * state) -> Prop := clos_trans _ cstep.
 
@@ -265,6 +272,27 @@ Proof.
   intros.
   destruct H0;
   destruct H as (? & ? & ? & ?); inversion H.
+Qed.
+
+Ltac solve_wp_0 :=
+  match goal with
+  | |- ~ Halt ?c ?k => unfold not; intros;
+    match goal with
+    | _: reducible c k ?st |- _ =>
+      apply (halt_reducible_ex c k st); auto
+    | _: irreducible c k ?st |- _ =>
+      apply (halt_irreducible_ex c k st); auto
+    end
+  end.
+
+Lemma halt_em: forall c k (st : state),
+  Halt c k \/ ~ Halt c k.
+Proof.
+  intros.
+  pose proof halt_choice c k st as [? | [? | ?]].
+  - left; auto.
+  - right; solve_wp_0.
+  - right; solve_wp_0.
 Qed.
 
 Lemma determinism : forall c st1 st2 st3 ek1 ek2,

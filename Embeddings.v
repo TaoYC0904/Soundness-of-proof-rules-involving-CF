@@ -38,6 +38,7 @@ Module SmallS.
 
 Inductive WP_n : nat -> com -> continuation -> Assertion -> Assertion -> Assertion -> state -> Prop :=
   | WP_0 : forall c k Q R1 R2 st, WP_n 0 c k Q R1 R2 st
+  (* | WP_0 : forall c k Q R1 R2 st, ~ Halt c k -> WP_n 0 c k Q R1 R2 st *)
   | WP_Ter1: forall n Q R1 R2 st,
       Assertion_denote st Q -> WP_n n CSkip nil Q R1 R2 st
   | WP_Ter2: forall n Q R1 R2 st,
