@@ -1001,7 +1001,45 @@ Inductive bstep : state -> bexp -> bexp -> Prop :=
 Lemma bexp_halt_choice : forall b st,
   bexp_halt b \/ exists b', bstep st b b'.
 Proof.
-Admitted.
+  intros.
+  induction b.
+  - left; constructor.
+  - left; constructor.
+  - right.
+    pose proof aexp_halt_choice a1 st as [? | ?];
+    [pose proof aexp_halt_choice a2 st as [? | ?] |];
+    destruct H; try destruct H0; subst.
+    + destruct (Z.eq_dec n n0).
+      * exists BTrue; constructor; auto.
+      * exists BFalse; constructor; auto.
+    + exists (BEq n x); constructor; auto; constructor.
+    + exists (BEq x a2); constructor; auto.
+  - right.
+    pose proof aexp_halt_choice a1 st as [? | ?];
+    [pose proof aexp_halt_choice a2 st as [? | ?] |];
+    destruct H; try destruct H0; subst.
+    + Search (_ <= _).
+      destruct (Z.le_decidable n n0).
+      * exists BTrue; constructor; auto.
+      * exists BFalse; constructor; auto. apply Znot_le_gt; auto.
+    + exists (BLe n x); constructor; auto; constructor.
+    + exists (BLe x a2); constructor; auto.
+  - destruct IHb.
+    + right. inversion H; subst.
+      * exists BFalse; constructor; auto.
+      * exists BTrue; constructor; auto.
+    + destruct H.
+      right. exists (BNot x); constructor; auto.
+  - right. destruct IHb1; [destruct IHb2 |]; subst;
+    destruct H; try destruct H0; subst.
+    + exists BTrue; constructor.
+    + exists BFalse; constructor.
+    + exists BFalse; constructor.
+    + exists BFalse; constructor.
+    + exists b2; constructor; auto.
+    + exists BFalse; constructor; auto.
+    + exists (BAnd x b2); constructor; auto.
+Qed.
 
 Section cstep.
 
