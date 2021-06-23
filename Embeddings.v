@@ -36,20 +36,25 @@ End BigS.
 
 Module SmallS.
 
-Inductive WP : com -> continuation -> Assertion -> Assertion -> Assertion
-  -> state -> Prop :=
-  | WP_Ter1: forall Q R1 R2 st,
-      Assertion_denote st Q -> WP CSkip nil Q R1 R2 st
-  | WP_Ter2: forall Q R1 R2 st,
-      Assertion_denote st R1 -> WP CBreak nil Q R1 R2 st 
-  | WP_Ter3: forall Q R1 R2 st,
-      Assertion_denote st R2 -> WP CCont nil Q R1 R2 st 
-  | WP_Pre: forall c k st Q R1 R2,
+Inductive WP_n : nat -> com -> continuation -> Assertion -> Assertion -> Assertion -> state -> Prop :=
+  | WP_0 : forall c k Q R1 R2 st, WP_n 0 c k Q R1 R2 st
+  | WP_Ter1: forall n Q R1 R2 st,
+      Assertion_denote st Q -> WP_n n CSkip nil Q R1 R2 st
+  | WP_Ter2: forall n Q R1 R2 st,
+      Assertion_denote st R1 -> WP_n n CBreak nil Q R1 R2 st 
+  | WP_Ter3: forall n Q R1 R2 st,
+      Assertion_denote st R2 -> WP_n n CCont nil Q R1 R2 st 
+  | WP_Pre: forall n c k st Q R1 R2,
       reducible c k st ->
       (* (exists c' k' st', cstep (c, k, st) (c', k', st')) -> *)
       (forall c' k' st', 
-        cstep (c, k, st) (c', k', st') -> WP c' k' Q R1 R2 st') ->
-      WP c k Q R1 R2 st.      
+        cstep (c, k, st) (c', k', st') -> WP_n n c' k' Q R1 R2 st') ->
+      WP_n (S n) c k Q R1 R2 st.
+
+Definition WP c k Q R1 R2 st : Prop :=
+  forall n, WP_n n c k Q R1 R2 st.
+
+Ltac iLob := intros n; induction n; [constructor |].
 
 Definition valid_smallstep (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
   forall st, Assertion_denote st P -> WP c nil Q R1 R2 st.
@@ -106,16 +111,12 @@ Fixpoint nocontinue (c : com) : Prop :=
   end.
 
 
-Definition simulation (sim : (com * continuation) -> (com * continuation) -> Prop) : Prop := 
-  forall c1 k1 c2 k2,
-    sim (c1, k1) (c2, k2) ->
-  (* (forall st, reducible c1 k1 st -> reducible c2 k2 st) /\ *)
-  (* ((c1, k1) = (CSkip, nil) -> (c2, k2) = (CSkip, nil)) /\
-  ((c1, k1) = (CBreak, nil) -> (c2, k2) = (CBreak, nil)) /\
-  ((c1, k1) = (CCont, nil) -> (c2, k2) = (CCont, nil)) /\ *)
-  (forall st, ~ reducible c1 k1 st -> mstep (c2, k2, st) (c1, k1, st)) /\
+  Definition simulation (sim : (com * continuation) -> (com * continuation) -> Prop) : Prop := forall c1 k1 c2 k2,
+  sim (c1, k1) (c2, k2) ->  (* c2 simulates c1 *)
+  (Halt c1 k1 -> (c1, k1) = (c2, k2)) /\
+  (forall st, irreducible c1 k1 st -> irreducible c2 k2 st) /\
   (forall c1' k1' st st',
     cstep (c1, k1, st) (c1', k1', st') ->
     exists c2' k2',
-    cstep (c2, k2, st) (c2', k2', st') /\ sim (c1', k1') (c2', k2')).
+    mstep (c2, k2, st) (c2', k2', st') /\ sim (c1', k1') (c2', k2')).
 

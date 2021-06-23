@@ -7,7 +7,7 @@ Inductive com : Type :=
   | CAss (X: var) (a : aexp)
   | CSeq (c1 c2 : com)
   | CIf (b : bexp) (c1 c2 : com)
-  | CFor (c1 c2 : com)
+  | CFor (c1 (* body *) c2 (* incr *) : com)
   | CBreak
   | CCont
 .
@@ -150,14 +150,25 @@ Inductive cstep: (com * continuation * state) -> (com * continuation * state) ->
       cstep (CFor c1 c2, k, st) 
             (CSeq c1 CCont, (KLoop1 c1 c2) :: k, st)
   | CS_ForSkip : forall c1 c2 k st,
-      cstep (CSkip, (KLoop2 c1  c2) :: k, st)
+      cstep (CSkip, (KLoop2 c1 c2) :: k, st)
             (CSeq c1 CCont, (KLoop1 c1 c2) :: k, st)
   | CS_ForCont : forall c1 c2 k st,
       cstep (CCont, (KLoop1 c1 c2) :: k, st)
             (c2, (KLoop2 c1 c2) :: k, st)
-  | CS_ForBreak : forall c1 c2 k st,
+  | CS_ForBreak1 : forall c1 c2 k st,
       cstep (CBreak, (KLoop1 c1 c2) :: k, st)
-            (CSkip, k, st).
+            (CSkip, k, st)
+  | CS_ForBreak2 : forall c1 c2 k st,
+      cstep (CBreak, (KLoop2 c1 c2) :: k, st)
+            (CSkip, k, st)
+.
+
+Inductive irreducible : com -> continuation -> state -> Prop :=
+| IR_ForSkip : forall c1 c2 k st,
+    irreducible CSkip (KLoop1 c1 c2 :: k) st
+| IR_ForCont : forall c1 c2 k st,
+    irreducible CCont (KLoop2 c1 c2 :: k) st
+.
 
 Definition NHalt c k : Prop := c = CSkip /\ k = @nil KElements.
 
@@ -167,22 +178,100 @@ Definition CHalt c k : Prop := c = CCont /\ k = @nil KElements.
 
 Definition Halt c k : Prop := NHalt c k \/ BHalt c k \/ CHalt c k.
 
+Ltac auto_halt :=
+  match goal with | |- Halt ?c _ =>
+    unfold Halt; unfold NHalt; unfold BHalt; unfold CHalt;
+    match c with
+    | CSkip => left; auto
+    | CBreak => right; left; auto
+    | CCont => right; right; auto
+    | _ => idtac
+    end
+  end
+.
+
 Definition reducible c k st : Prop := (exists c' k' st', cstep (c, k, st) (c', k', st')).
 
-Definition Error c k : Prop := ~ Halt c k /\ forall st, ~ reducible c k st.
+Definition Error c k st : Prop := ~ Halt c k /\ irreducible c k st.
 
 Definition mstep : (com * continuation * state) -> (com * continuation * state) -> Prop := clos_trans _ cstep.
 
-Lemma halt_choice : forall c k,
-  Halt c k \/ Error c k \/ exists st, reducible c k st.
+Import Assertion_D.
+
+Lemma halt_choice : forall c k st,
+  Halt c k \/ reducible c k st \/ irreducible c k st.
 Proof.
-Admitted.
+  intros.
+  destruct c.
+  - destruct k as [| c' k]; [left; auto_halt |].
+    right; destruct c'.
+    + left. exists c, k, st. constructor.
+    + right. constructor.
+    + left. exists (CSeq c1 CCont), ((KLoop1 c1 c2) :: k), st. constructor.
+  - right. left.
+    pose proof aexp_halt_choice a st.
+    destruct H.
+    + inversion H; subst.
+      exists CSkip, k, (state_update st X n).
+      pose proof state_update_spec st X n as [? ?].
+      constructor; auto. 
+    + destruct H. exists (CAss X x), k, st. constructor; auto.
+  - right; left.
+    exists c1, (KSeq c2 :: k), st.
+    constructor.
+  - right; left.
+    pose proof bexp_halt_choice b st.
+    destruct H.
+    + inversion H; subst;
+      [
+        exists c1, k, st |
+        exists c2, k, st
+      ]; constructor.
+    + destruct H. exists (CIf x c1 c2), k, st; constructor; auto.
+  - right; left.
+    exists (CSeq c1 CCont), ((KLoop1 c1 c2) :: k), st.
+    constructor.
+  - destruct k as [| c' k]; [left; auto_halt |].
+    right; destruct c'.
+    + left. exists CBreak, k, st. constructor.
+    + left. exists CSkip, k, st. constructor.
+    + left. exists CSkip, k, st. constructor.
+  - destruct k as [| c' k]; [left; auto_halt |].
+    right; destruct c'.
+    + left. exists CCont, k, st. constructor.
+    + left. exists c2, ((KLoop2 c1 c2) :: k), st. constructor.
+    + right; constructor.
+Qed.
+
+Lemma halt_reducible_ex : forall c k st,
+  Halt c k -> reducible c k st -> False.
+Proof.
+  intros.
+  destruct H as [? | [? | ?]]; inversion H; subst;
+  destruct H0 as (? & ? & ? & ?); inversion H0.
+Qed.
+
+Lemma halt_irreducible_ex : forall c k st,
+  Halt c k -> irreducible c k st -> False.
+Proof.
+  intros.
+  destruct H as [? | [? | ?]]; inversion H; subst;
+  inversion H0.
+Qed.
+
+Lemma reducible_irreducible_ex : forall c k st,
+  reducible c k st -> irreducible c k st -> False.
+Proof.
+  intros.
+  destruct H0;
+  destruct H as (? & ? & ? & ?); inversion H.
+Qed.
 
 Lemma determinism : forall c st1 st2 st3 ek1 ek2,
   ceval c st1 ek1 st2 ->
   ceval c st1 ek2 st3 ->
   (ek1 = ek2 /\ st2 = st3).
-Admitted.
+Abort.
   
 
 (* Ltac induction_cstep H :=
@@ -236,3 +325,4 @@ Admitted.
   end. *)
 
 (* 2021-05-08 18:58 *)
+

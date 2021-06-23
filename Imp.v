@@ -904,6 +904,30 @@ Inductive astep : state -> aexp -> aexp -> Prop :=
       astep st
         (AMult (ANum n1) (ANum n2)) (ANum (n1 * n2)).
 
+Lemma aexp_halt_choice : forall a st,
+  aexp_halt a \/ exists a', astep st a a'.
+Proof.
+  intros.
+  induction a; intros.
+  - left. constructor.
+  - right. exists (ANum (st X)); constructor.
+  - right. destruct IHa1, IHa2; destruct H, H0; subst.
+    + exists (n + n0). constructor.
+    + exists (APlus n x). constructor; try constructor; auto.
+    + exists (APlus x n). constructor; try constructor; auto.
+    + exists (APlus x a2). constructor; auto.
+  - right. destruct IHa1, IHa2; destruct H, H0; subst.
+    + exists (n - n0). constructor.
+    + exists (AMinus n x). constructor; try constructor; auto.
+    + exists (AMinus x n). constructor; try constructor; auto.
+    + exists (AMinus x a2). constructor; auto.
+  - right. destruct IHa1, IHa2; destruct H, H0; subst.
+    + exists (n * n0). constructor.
+    + exists (AMult n x). constructor; try constructor; auto.
+    + exists (AMult x n). constructor; try constructor; auto.
+    + exists (AMult x a2). constructor; auto.
+Qed.  
+
 Inductive bexp_halt: bexp -> Prop :=
   | BH_True : bexp_halt BTrue
   | BH_False : bexp_halt BFalse.
@@ -973,6 +997,11 @@ Inductive bstep : state -> bexp -> bexp -> Prop :=
   | BS_AndFalse : forall st b,
       bstep st
        (BAnd BFalse b) BFalse.
+
+Lemma bexp_halt_choice : forall b st,
+  bexp_halt b \/ exists b', bstep st b b'.
+Proof.
+Admitted.
 
 Section cstep.
 
