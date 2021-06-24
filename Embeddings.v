@@ -1,3 +1,4 @@
+Require Import Coq.Lists.List.
 Require Import Shallow.Imp.
 Require Import Shallow.ImpCF.
 (* Import Assertion_S. *)
@@ -64,33 +65,42 @@ End SmallS.
 
 Module Cont.
 
-Inductive safe : com -> continuation -> state -> Prop :=
-  | safe_Ter1: forall st, safe CSkip nil st 
-  | safe_Ter2: forall st, safe CBreak nil st
-  | safe_Ter3: forall st, safe CCont nil st    
-  | safe_Pre: forall c k st c' k' st',
-      cstep (c, k, st) (c', k', st') ->
-      safe c' k' st' ->
-      safe c k st.
+Inductive safe_n : nat -> com -> continuation -> state -> Prop :=
+  | safe_0: forall c k st, safe_n 0 c k st
+  | safe_Ter1: forall n st, safe_n n CSkip nil st 
+  | safe_Ter2: forall n st, safe_n n CBreak nil st
+  | safe_Ter3: forall n st, safe_n n CCont nil st    
+  | safe_Pre: forall n c k st,
+      reducible c k st ->
+      (forall c' k' st', 
+        cstep (c, k, st) (c', k', st') -> safe_n n c' k' st') ->
+      safe_n (S n) c k st.
 
-Definition guard (P : Assertion) (k : continuation) : Prop :=
-  forall st, Assertion_denote st P -> safe CSkip k st.
+Definition safe c k st : Prop :=
+  forall n, safe_n n c k st.
 
-(* Lemma all_guard_nil : forall P, guard P nil.
+Definition guard P c k : Prop :=
+  forall st, Assertion_denote st P -> safe c k st.
+
+Lemma all_guard_nil : forall P, guard P CSkip nil.
 Proof.
   intros.
-  unfold guard.
-  intros.
+  intros st ? n.
   apply safe_Ter1.
 Qed.
 
-Lemma false_guard_all : forall k, guard (DInj BFalse) k.
+Lemma false_guard_all : forall c k, guard (fun _ => False) c k.
 Proof.
   intros.
-  unfold guard.
-  intros.
+  intros st ?.
   inversion H; subst.
-Qed.  *)
+Qed.
+
+Definition valid_continuation P c Q R1 R2 : Prop := forall k,
+    guard Q CSkip k ->
+    guard R1 CBreak k ->
+    guard R2 CCont k ->
+    guard P c k.
 
 Open Scope list_scope.
 
