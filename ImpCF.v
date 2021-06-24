@@ -201,7 +201,7 @@ Definition reducible c k st : Prop := (exists c' k' st', cstep (c, k, st) (c', k
 
 (* Definition Error c k st : Prop := ~ Halt c k /\ irreducible c k st. *)
 
-Definition mstep : (com * continuation * state) -> (com * continuation * state) -> Prop := clos_trans _ cstep.
+Definition mstep : (com * continuation * state) -> (com * continuation * state) -> Prop := clos_refl_trans cstep.
 
 Import Assertion_D.
 

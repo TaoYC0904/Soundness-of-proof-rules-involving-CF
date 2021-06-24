@@ -21,17 +21,18 @@ Proof.
   remember (c', k', st') as prog'.
   revert c k st Heqprog H.
   unfold mstep in H0.
-  apply clos_trans_t1n_iff in H0.
+  rewrite rt_rt1n_iff in H0.
   induction H0; intros; subst.
-  - intros n.
+  - inversion Heqprog; subst; auto.
+    (* intros n.
     specialize (H0 (S n)).
     inversion H0; subst;
     [ inversion H |
       inversion H |
       inversion H |].
-    apply (H3 _ _ _ H).
+    apply (H3 _ _ _ H). *)
   - destruct y as [[c'' k''] st''].
-    apply (IHclos_trans_1n eq_refl _ _ _ eq_refl).
+    apply (IHclos_refl_trans_1n eq_refl _ _ _ eq_refl).
     intros n.
     specialize (H1 (S n)).
     inversion H1; subst;
@@ -184,10 +185,58 @@ Theorem seq_inv_valid_smallstep : forall P c1 c2 Q R1 R2,
     (valid_smallstep Q' c2 Q R1 R2)).
 Admitted.
 
+
+Inductive if_seq_sim : (com * continuation) -> (com * continuation) -> Prop :=
+| IS_sim_id : forall c k, if_seq_sim (c, k) (c, k)
+| IS_sim_ifseq : forall b c1 c2 c3 k,
+if_seq_sim (CSeq (CIf b c1 c2) c3, k) (CIf b (CSeq c1 c3) (CSeq c2 c3), k)
+| IS_sim_seq : forall b c1 c2 c3 k,
+if_seq_sim (CIf b c1 c2, KSeq c3 :: k) (CIf b (CSeq c1 c3) (CSeq c2 c3), k)
+(* | IS_sim_bfalse : forall c1 c2 c3 k,
+    if_seq_sim (CIf BFalse c1 c2, KSeq c3 :: k) (CSeq c1 c3, k)
+| IS_sim_btrue : forall c1 c2 c3 k,
+    if_seq_sim (CIf BTrue c1 c2, KSeq c3 :: k) (CSeq c2 c3, k) *)
+.
+
+Lemma if_seq_sim_is_simulation :
+  simulation if_seq_sim.
+Proof.
+  unfold simulation.
+  intros. split; [| split].
+  {
+    intros.
+    destruct H0 as [? | [? | ?]]; inversion H0; subst; inversion H; subst; auto.
+  }
+  {
+    intros.
+    inversion H0; subst; inversion H; subst; auto.
+  }
+  {
+    intros.
+    inversion H; subst.
+    - exists c1', k1'; split; constructor; auto.
+    - inversion H0; subst.
+      exists (CIf b (CSeq c0 c4) (CSeq c3 c4)), k2;
+      split; [apply rt_refl | constructor].
+    - inversion H0; subst.
+      + exists (CIf b' (CSeq c0 c4) (CSeq c3 c4)), k2; split; constructor.
+        constructor; auto.
+      + exists c1', (KSeq c4 :: k2); split; [| constructor].
+        apply (rt_trans _ _ (CSeq c1' c4, k2, st')); constructor; constructor.
+      + exists c1', (KSeq c4 :: k2); split; [| constructor].
+        apply (rt_trans _ _ (CSeq c1' c4, k2, st')); constructor; constructor.
+  }
+Qed.
+
 Theorem if_seq_valid_smallstep : forall P b c1 c2 c3 Q R1 R2,
-  valid_smallstep P (CSeq (CIf b c1 c2) c3) Q R1 R2 ->
-  valid_smallstep P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2.
-Admitted.
+  valid_smallstep P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2 ->
+  valid_smallstep P (CSeq (CIf b c1 c2) c3) Q R1 R2.
+Proof.
+  unfold valid_smallstep.
+  intros.
+  apply (wp_sim _ _ _ _ _ _ _ _ _ if_seq_sim_is_simulation (IS_sim_ifseq b c1 c2 c3 nil)).
+  apply H; auto.
+Qed.
 
 (* Already proved in Iris-CF, leave to the last *)
 Theorem nocontinue_valid_smallstep : forall P c Q R1 R2 R2',

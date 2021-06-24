@@ -102,12 +102,6 @@ Definition valid_continuation P c Q R1 R2 : Prop := forall k,
     guard R2 CCont k ->
     guard P c k.
 
-Open Scope list_scope.
-
-Definition valid_continuaion (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
-  forall k, (guard Q k /\ guard R1 ((KSeq CBreak) :: k) /\ guard R2 ((KSeq CCont) :: k)) ->
-    guard P ((KSeq c) :: k).
-
 End Cont.
 
 Fixpoint nocontinue (c : com) : Prop :=
