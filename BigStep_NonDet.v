@@ -394,6 +394,53 @@ Proof.
 Qed.
 
 Theorem if_seq_sound_bigstep : forall P b c1 c2 c3 Q R1 R2,
+  total_valid P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2 ->
+  total_valid P (CSeq (CIf b c1 c2) c3) Q R1 R2.
+Proof.
+  intros.
+  unfold total_valid in H.
+  unfold total_valid.
+  destruct H.
+  split.
+  + (* safety *)
+    intros.
+    specialize (H st1 H1).
+    unfold not; intros.
+    apply H.
+    simpl in H2; simpl.
+    destruct H2.
+    { destruct H2 as [st3 ?].
+      destruct H2. destruct H2.
+      - destruct H2.
+        right. left. split; try tauto.
+        left. exists st3. tauto.
+      - destruct H2.
+        right. right. split; try tauto.
+        left. exists st3. tauto. }
+    destruct H2.
+    { tauto. }
+    destruct H2.
+    { right. left. split; try tauto. }
+    right. right.  split; try tauto.
+  + (* partial validity *)
+    clear H.
+    unfold partial_valid in H0.
+    unfold partial_valid.
+    intros.
+    specialize (H0 st1 ek st2 H).
+    apply H0. clear H0.   
+    simpl in H1; simpl.
+    destruct H1.
+    { destruct H0 as [st3 [? ?]].
+      destruct H0.
+      - left. split; try tauto.
+        left. exists st3. tauto.
+      - right. split; try tauto.
+        left. exists st3. tauto. }
+    destruct H0. destruct H0; tauto.
+Qed.
+      
+(* Theorem if_seq_sound_bigstep : forall P b c1 c2 c3 Q R1 R2,
   total_valid P (CSeq (CIf b c1 c2) c3) Q R1 R2 ->
   total_valid P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2.
 Proof.
@@ -454,7 +501,7 @@ Proof.
         left. exists st3. tauto.
       * (* c2 Break or Cont *)  
         tauto.
-Qed.
+Qed. *)
 
 Fixpoint nocontinue (c : com) : Prop :=
   match c with

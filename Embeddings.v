@@ -116,7 +116,7 @@ Fixpoint nocontinue (c : com) : Prop :=
   end.
 
 
-  Definition simulation (sim : (com * continuation) -> (com * continuation) -> Prop) : Prop := forall c1 k1 c2 k2,
+Definition simulation (sim : (com * continuation) -> (com * continuation) -> Prop) : Prop := forall c1 k1 c2 k2,
   sim (c1, k1) (c2, k2) ->  (* c2 simulates c1 *)
   (Halt c1 k1 -> (c1, k1) = (c2, k2)) /\
   (forall st, irreducible c1 k1 st -> irreducible c2 k2 st) /\
