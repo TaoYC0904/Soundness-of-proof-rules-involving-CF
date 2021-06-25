@@ -95,6 +95,16 @@ Inductive KElements: Type :=
 
 Definition continuation: Type := list KElements.
 
+Lemma nil_app_neq {A : Type} : forall (a : A) l1 l2,
+  nil = l1 ++ a :: l2 -> False.
+Proof.
+  intros.
+  pose proof eq_refl (List.length (@nil A)).
+  rewrite H in H0 at 1.
+  rewrite List.app_length in H0.
+  simpl in H0. lia.
+Qed.
+
 (* Inductive continuation': Type :=
   | Empty_Continuation
   | KSeq' (c : com) (k0 : continuation')
@@ -198,6 +208,16 @@ Ltac auto_halt :=
 .
 
 Definition reducible c k st : Prop := (exists c' k' st', cstep (c, k, st) (c', k', st')).
+
+Lemma reducible_ctx_step : forall c k k' st,
+  reducible c k st -> reducible c (k ++ k') st.
+Proof.
+  intros.
+  destruct H as (c1 & k1 & st1 & ?).
+  exists c1, (k1 ++ k'), st1.
+  apply cstep_ctx_step; auto.
+Qed.
+
 
 (* Definition Error c k st : Prop := ~ Halt c k /\ irreducible c k st. *)
 

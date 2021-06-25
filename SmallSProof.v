@@ -106,17 +106,6 @@ Proof.
     apply (wp_sim_term _ _ _ _ _ _ _ _ _ _ H3 Hsim H0 H1).
 Qed.
 
-
-Lemma nil_app_neq {A : Type} : forall (a : A) l,
-  nil = l ++ a :: nil -> False.
-Proof.
-  intros.
-  pose proof eq_refl (List.length (@nil A)).
-  rewrite H in H0 at 1.
-  rewrite List.app_length in H0.
-  simpl in H0. lia.
-Qed.
-
 Lemma wp_bind_inv: forall c1 c2 Q R1 R2 st,
 WP c1 (KSeq c2 :: nil) Q R1 R2 st ->
 WP c1 nil (WP c2 nil Q R1 R2) R1 R2 st.
