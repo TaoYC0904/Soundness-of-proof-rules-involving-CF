@@ -155,6 +155,141 @@ Proof.
 Qed.
 
 Theorem if_seq_valid_bigstep : forall P b c1 c2 c3 Q R1 R2,
+  total_valid_bigstep P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2 ->
+  total_valid_bigstep P (CSeq (CIf b c1 c2) c3) Q R1 R2.
+Proof.
+    unfold total_valid_bigstep.
+    intros.
+    destruct H.
+    split.
+    + (* termination *)
+      intros.
+      specialize (H st1 H1).
+      destruct H as [ek [st2 ?]].
+      exists ek, st2.
+      simpl in H.
+      unfold if_sem in H.
+      unfold union_sem in H.
+      destruct H.
+      - (* b true *)
+        unfold seq_sem at 1 in H.
+        destruct H.
+        2:{ unfold test_sem in H; destruct H as [[? [? ?]] ?]; contradiction. }
+        destruct H as [st3 [? ?]].
+        unfold test_sem in H.
+        destruct H as [? [? ?]]; subst.
+        unfold seq_sem in H2; destruct H2.
+        * (* c1 Normal *)
+          destruct H as [st4 [? ?]].
+          simpl.
+          unfold seq_sem. left.
+          exists st4.
+          split; try tauto.
+          unfold if_sem, union_sem.
+          left.
+          unfold seq_sem. left.
+          exists st3. unfold test_sem. tauto.
+        * (* c1 Break or Cont *)
+          destruct H.
+          simpl.
+          unfold seq_sem. right.
+          split; try tauto.
+          unfold if_sem, union_sem. left. 
+          unfold seq_sem. left.
+          exists st3. unfold test_sem. tauto.
+      - (* b false *)
+        unfold seq_sem at 1 in H.
+        destruct H.
+        2:{ unfold test_sem in H. destruct H as [[? [? ?]] ?]; contradiction. }
+        destruct H as [st3 [? ?]].
+        unfold test_sem in H.
+        destruct H as [? [? ?]]; subst.
+        unfold seq_sem in H2.
+        destruct H2.
+        * (* c1 Normal *)
+          destruct H as [st4 [? ?]].
+          simpl.
+          unfold seq_sem. left.
+          exists st4. split; try tauto.
+          unfold if_sem, union_sem. right.
+          unfold seq_sem. left.
+          exists st3. unfold test_sem. tauto.
+        * (* c1 Break or Cont *)
+          destruct H.
+          simpl.
+          unfold seq_sem. right.
+          split; try tauto.
+          unfold if_sem, union_sem. right.
+          unfold seq_sem. left.
+          exists st3. unfold test_sem. tauto.
+  + (* partial validity *)
+    clear H.
+    unfold partial_valid_bigstep in H0.
+    unfold partial_valid_bigstep.
+    intros.
+    specialize (H0 st1 st2 ek H).
+    apply H0. clear H0.
+    simpl in H1.
+    unfold seq_sem in H1. 
+    destruct H1.
+    - (* if Normal *)
+      destruct H0 as [st3 [? ?]].
+      unfold if_sem, union_sem in H0.
+      destruct H0.
+      * (* b true *)
+        unfold seq_sem in H0.
+        destruct H0.
+        2:{ destruct H0. contradiction. }
+        destruct H0 as [st4 [? ?]].
+        unfold test_sem in H0. destruct H0 as [? [? ?]]; subst.
+        simpl. 
+        unfold if_sem, union_sem. left.
+        unfold seq_sem at 1. left.
+        exists st4. unfold test_sem. split; try tauto.
+        unfold seq_sem. left.
+        exists st3; tauto.
+      * (* b false *)
+        unfold seq_sem in H0.
+        destruct H0.
+        2:{ destruct H0. contradiction. }
+        destruct H0 as [st4 [? ?]].
+        unfold test_sem in H0.
+        destruct H0 as [? [? ?]]; subst.
+        simpl.
+        unfold if_sem, union_sem. right.
+        unfold seq_sem at 1. left.
+        exists st4. unfold test_sem. split; try tauto.
+        unfold seq_sem. left.
+        exists st3; tauto.
+    - (* if Break or Cont *)
+      destruct H0.
+      unfold if_sem, union_sem in H0.
+      destruct H0.
+      * (* b true *)
+        unfold seq_sem in H0.
+        destruct H0.
+        2:{ destruct H0. unfold test_sem in H0. destruct H0 as [? [? ?]]. contradiction. }
+        destruct H0 as [st3 [? ?]].
+        unfold test_sem in H0.
+        destruct H0 as [? [? ?]]; subst.
+        simpl.
+        unfold if_sem, union_sem. left.
+        unfold seq_sem. left.
+        exists st3. unfold test_sem. split; try tauto.
+      * (* b false *)
+        unfold seq_sem in H0.
+        destruct H0.
+        2:{ destruct H0. unfold test_sem in H0. destruct H0 as [? [? ?]]. contradiction. }
+        destruct H0 as [st3 [? ?]].
+        unfold test_sem in H0.
+        destruct H0 as [? [? ?]]; subst.
+        simpl.
+        unfold if_sem, union_sem. right.
+        unfold seq_sem. left.
+        exists st3. unfold test_sem. split; try tauto.
+Qed.
+
+(* Theorem if_seq_valid_bigstep : forall P b c1 c2 c3 Q R1 R2,
   total_valid_bigstep P (CSeq (CIf b c1 c2) c3) Q R1 R2 ->
   total_valid_bigstep P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2.
 Proof.
@@ -311,7 +446,7 @@ Proof.
           destruct H2.
           unfold test_sem in H2.
           tauto.
-Qed.
+Qed. *)
 
 Lemma nocontinue_nocontexit : forall c st1,
   nocontinue c ->
