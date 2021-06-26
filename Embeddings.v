@@ -104,29 +104,33 @@ Definition valid_continuation P c Q R1 R2 : Prop := forall k,
 
 End Cont.
 
-Fixpoint nocontinue (c : com) : Prop :=
+Fixpoint nocontinue_c (c : com) : Prop :=
   match c with
   | CSkip         => True
   | CAss _ _      => True
-  | CSeq c1 c2    => (nocontinue c1) /\ (nocontinue c2)
-  | CIf b c1 c2   => (nocontinue c1) /\ (nocontinue c2)
-  | CFor c1 c2    => (nocontinue c1) /\ (nocontinue c2)
+  | CSeq c1 c2    => (nocontinue_c c1) /\ (nocontinue_c c2)
+  | CIf b c1 c2   => (nocontinue_c c1) /\ (nocontinue_c c2)
+  | CFor c1 c2    => True
   | CBreak        => True 
   | CCont         => False
   end.
 
-Fixpoint nocontinue_k (k : continuation) : Prop :=
-  match k with 
-  | nil => True 
-  | KSeq c :: k' => (nocontinue c) /\ (nocontinue_k k')
-  | KLoop1 c1 c2 :: k' =>  
-      (nocontinue c1) /\ (nocontinue c2) /\ (nocontinue_k k')
-  | KLoop2 c1 c2 :: k' =>
-      (nocontinue c1) /\ (nocontinue c2) /\ (nocontinue_k k')
+Fixpoint hasloop_k k : Prop :=
+  match k with
+  | nil => False
+  | KLoop1 _ _ :: _ | KLoop2 _ _ :: _ => True
+  | KSeq _ :: k => hasloop_k k
   end.
 
-Definition nocontinue_ck c k : Prop :=
-  nocontinue c /\ nocontinue_k k.
+Fixpoint nocontinue_k (k : continuation) : Prop :=
+  match k with 
+  | KSeq c :: k' => (nocontinue_c c \/ hasloop_k k') /\ (nocontinue_k k')
+  | KLoop1 c1 c2 :: k' => (nocontinue_k k')
+  | KLoop2 c1 c2 :: k' => (nocontinue_k k')
+  | nil => True
+  end.
+
+Definition nocontinue c k : Prop := nocontinue_k (KSeq c :: k).
 
 Definition simulation (sim : (com * continuation) -> (com * continuation) -> Prop) : Prop := forall c1 k1 c2 k2,
   sim (c1, k1) (c2, k2) ->  (* c2 simulates c1 *)
