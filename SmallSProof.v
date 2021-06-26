@@ -169,10 +169,12 @@ Qed.
 
 (* TODO: need (c1, (KSeq c2 :: nil)) ~ (c1 ;; c2, nil) *)
 
+Import Assertion_Shallow.
+
 Inductive seq_inv_sim : (com * continuation) -> (com * continuation) -> Prop :=
-| SI_sim_id : forall c k, seq_inv_sim (c, k) (c, k)
-| SI_sim_seqinv : forall c1 c2 k, 
-    seq_inv_sim (c1, KSeq c2 :: k) (CSeq c1 c2, k).
+  | SI_sim_id : forall c k, seq_inv_sim (c, k) (c, k)
+  | SI_sim_seqinv : forall c1 c2 k, 
+      seq_inv_sim (c1, KSeq c2 :: k) (CSeq c1 c2, k).
 
 Lemma seq_inv_sim_is_simulation : simulation seq_inv_sim.
 Proof.
@@ -188,16 +190,77 @@ Proof.
   inversion H; subst.
   + exists c1', k1'.
     split; constructor; tauto.
-  + Admitted.
-
-
+  + rename c3 into c2; rename k2 into k.
+    inversion H0; subst.
+    - exists (CAss X a'), (KSeq c2 :: k).
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
+    - exists CSkip, (KSeq c2 :: k).
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
+    - rename c1' into c11; rename c3 into c12.
+      exists c11, (KSeq c12 :: KSeq c2 :: k).
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
+    - exists c1', k1'.
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
+    - exists CCont, k1'.
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
+    - exists CBreak, k1'.
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
+    - rename c0 into c11; rename c3 into c12.
+      exists (CIf b' c11 c12), (KSeq c2 :: k).
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
+    - exists c1', (KSeq c2 :: k).
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
+    - exists c1', (KSeq c2 :: k).
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
+    - exists (CSeq c0 CCont), (KLoop1 c0 c3 :: KSeq c2 :: k).
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
+Qed.    
 
 Theorem seq_inv_valid_smallstep : forall P c1 c2 Q R1 R2,
   valid_smallstep P (CSeq c1 c2) Q R1 R2 ->
   (exists Q', (valid_smallstep P c1 Q' R1 R2) /\
     (valid_smallstep Q' c2 Q R1 R2)).
-Admitted.
-
+Proof.
+  intros.
+  exists (WP c2 nil Q R1 R2).
+  split.
+  { unfold valid_smallstep in H.
+    unfold valid_smallstep.
+    intros.
+    specialize (H st H0).
+    pose proof wp_sim.
+    pose proof wp_bind_inv.
+    specialize (H1 (CSeq c1 c2) c1 nil (KSeq c2 :: nil) Q R1 R2 st seq_inv_sim).
+    apply H2. apply H1.
+    + apply seq_inv_sim_is_simulation.
+    + constructor.
+    + tauto.
+  }
+  unfold valid_smallstep.
+  intros.
+  unfold Assertion_denote, WP in H0.
+  unfold WP; tauto.
+Qed.
 
 Inductive if_seq_sim : (com * continuation) -> (com * continuation) -> Prop :=
   | IS_sim_id : forall c k, if_seq_sim (c, k) (c, k)
@@ -268,7 +331,7 @@ Inductive loop_noc_sim : (com * continuation) -> (com * continuation) -> Prop :=
       loop_noc_sim (CSeq c1 CCont, KLoop1 c1 c2 :: k) 
         (CSeq c1 c2, KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k)
   | LN_sim_2 : forall c0 c1 c2 k k0,
-      nocontinue c0 -> nocontinue c1 -> nocontinue c2 ->
+      nocontinue c1 -> nocontinue c2 ->
       loop_noc_sim (c0, k0 ++ KSeq CCont :: KLoop1 c1 c2 :: k)
         (c0, k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k)
   | LN_sim_3 : forall c1 c2 k,
@@ -319,8 +382,7 @@ Proof.
         (KSeq c02 :: k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
       split; [repeat constructor; auto |].
       apply (LN_sim_2 c01 _ _ _ (KSeq c02 :: k0)); auto.
-
-
+      destruct H5; tauto.
     - destruct k0.
       { inversion H3; subst.
         exists c2, (KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
@@ -329,23 +391,8 @@ Proof.
       exists c1',
         (k1 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
       split; [repeat constructor; auto | constructor; auto].
+
     - destruct k0.
-      { inversion H3; subst.  
-        exists c2,
-          (KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
-        split; [| constructor].
-        eapply rt_trans_1n; [constructor |].
-        eapply rt_trans_1n; [constructor |].
-        eapply rt_trans_1n; [constructor |].
-        eapply rt_trans_1n; [constructor |].
-        eapply rt_trans_1n; [constructor |].
-        eapply rt_trans_1n; [constructor |].
-
-
-
-        
-      
-      }
       inversion H3; subst.
       exists CCont, 
         (k1 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
