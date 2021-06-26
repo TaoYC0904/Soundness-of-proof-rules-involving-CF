@@ -115,6 +115,18 @@ Fixpoint nocontinue (c : com) : Prop :=
   | CCont         => False
   end.
 
+Fixpoint nocontinue_k (k : continuation) : Prop :=
+  match k with 
+  | nil => True 
+  | KSeq c :: k' => (nocontinue c) /\ (nocontinue_k k')
+  | KLoop1 c1 c2 :: k' =>  
+      (nocontinue c1) /\ (nocontinue c2) /\ (nocontinue_k k')
+  | KLoop2 c1 c2 :: k' =>
+      (nocontinue c1) /\ (nocontinue c2) /\ (nocontinue_k k')
+  end.
+
+Definition nocontinue_ck c k : Prop :=
+  nocontinue c /\ nocontinue_k k.
 
 Definition simulation (sim : (com * continuation) -> (com * continuation) -> Prop) : Prop := forall c1 k1 c2 k2,
   sim (c1, k1) (c2, k2) ->  (* c2 simulates c1 *)

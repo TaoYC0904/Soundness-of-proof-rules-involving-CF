@@ -168,6 +168,30 @@ Proof.
 Qed.
 
 (* TODO: need (c1, (KSeq c2 :: nil)) ~ (c1 ;; c2, nil) *)
+
+Inductive seq_inv_sim : (com * continuation) -> (com * continuation) -> Prop :=
+| SI_sim_id : forall c k, seq_inv_sim (c, k) (c, k)
+| SI_sim_seqinv : forall c1 c2 k, 
+    seq_inv_sim (c1, KSeq c2 :: k) (CSeq c1 c2, k).
+
+Lemma seq_inv_sim_is_simulation : simulation seq_inv_sim.
+Proof.
+  unfold simulation.
+  intros.
+  split; try split.
+  { intros. 
+    destruct H0 as [? | [? | ?]]; inversion H0; subst; 
+      inversion H; subst; tauto. }
+  { intros.
+    inversion H0; subst; inversion H; subst; constructor. }
+  intros.
+  inversion H; subst.
+  + exists c1', k1'.
+    split; constructor; tauto.
+  + Admitted.
+
+
+
 Theorem seq_inv_valid_smallstep : forall P c1 c2 Q R1 R2,
   valid_smallstep P (CSeq c1 c2) Q R1 R2 ->
   (exists Q', (valid_smallstep P c1 Q' R1 R2) /\
@@ -176,16 +200,16 @@ Admitted.
 
 
 Inductive if_seq_sim : (com * continuation) -> (com * continuation) -> Prop :=
-| IS_sim_id : forall c k, if_seq_sim (c, k) (c, k)
-| IS_sim_ifseq : forall b c1 c2 c3 k,
-if_seq_sim (CSeq (CIf b c1 c2) c3, k) (CIf b (CSeq c1 c3) (CSeq c2 c3), k)
-| IS_sim_seq : forall b c1 c2 c3 k,
-if_seq_sim (CIf b c1 c2, KSeq c3 :: k) (CIf b (CSeq c1 c3) (CSeq c2 c3), k)
-(* | IS_sim_bfalse : forall c1 c2 c3 k,
-    if_seq_sim (CIf BFalse c1 c2, KSeq c3 :: k) (CSeq c1 c3, k)
-| IS_sim_btrue : forall c1 c2 c3 k,
-    if_seq_sim (CIf BTrue c1 c2, KSeq c3 :: k) (CSeq c2 c3, k) *)
-.
+  | IS_sim_id : forall c k, if_seq_sim (c, k) (c, k)
+  | IS_sim_ifseq : forall b c1 c2 c3 k,
+  if_seq_sim (CSeq (CIf b c1 c2) c3, k) (CIf b (CSeq c1 c3) (CSeq c2 c3), k)
+  | IS_sim_seq : forall b c1 c2 c3 k,
+  if_seq_sim (CIf b c1 c2, KSeq c3 :: k) (CIf b (CSeq c1 c3) (CSeq c2 c3), k)
+  (* | IS_sim_bfalse : forall c1 c2 c3 k,
+      if_seq_sim (CIf BFalse c1 c2, KSeq c3 :: k) (CSeq c1 c3, k)
+  | IS_sim_btrue : forall c1 c2 c3 k,
+      if_seq_sim (CIf BTrue c1 c2, KSeq c3 :: k) (CSeq c2 c3, k) *)
+  .
 
 Lemma if_seq_sim_is_simulation :
   simulation if_seq_sim.
@@ -233,6 +257,133 @@ Theorem nocontinue_valid_smallstep : forall P c Q R1 R2 R2',
   valid_smallstep P c Q R1 R2 ->
   valid_smallstep P c Q R1 R2'.
 Admitted.
+
+Inductive loop_noc_sim : (com * continuation) -> (com * continuation) -> Prop :=
+  | LN_sim_id : forall c k, loop_noc_sim (c, k) (c, k)
+  | LN_sim_loopnoc : forall c1 c2 k,
+      nocontinue c1 -> nocontinue c2 ->
+      loop_noc_sim (CFor c1 c2, k) (CFor (CSeq c1 c2) CSkip, k)
+  | LN_sim_1 : forall c1 c2 k,
+      nocontinue c1 -> nocontinue c2 ->
+      loop_noc_sim (CSeq c1 CCont, KLoop1 c1 c2 :: k) 
+        (CSeq c1 c2, KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k)
+  | LN_sim_2 : forall c0 c1 c2 k k0,
+      nocontinue c0 -> nocontinue c1 -> nocontinue c2 ->
+      loop_noc_sim (c0, k0 ++ KSeq CCont :: KLoop1 c1 c2 :: k)
+        (c0, k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k)
+  | LN_sim_3 : forall c1 c2 k,
+      nocontinue c1 -> nocontinue c2 ->
+      loop_noc_sim (CCont, KLoop1 c1 c2 :: k) 
+        (c2, KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k)
+  | LN_sim_4 : forall c0 c1 c2 k k0,
+      nocontinue c1 -> nocontinue c2 ->
+      loop_noc_sim (c0, k0 ++ KLoop2 c1 c2 :: k)
+        (c0, k0 ++ KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k)
+  | LN_sim_5 : forall c1 c2 k,
+      nocontinue c1 -> nocontinue c2 ->
+      loop_noc_sim (CSkip, KLoop2 c1 c2 :: k)
+        (CSkip, KLoop2 (CSeq c1 c2) CSkip :: k).
+
+
+Lemma loop_noc_sim_is_simulation : simulation loop_noc_sim.
+Proof.
+  unfold simulation.
+  intros.
+  split; [ | split].
+  { admit. }
+  { admit. }
+  intros.
+  inversion H; subst.
+  + exists c1', k1'.
+    split; [ constructor; auto | constructor].
+  + rename c0 into c1; rename c3 into c2; rename k2 into k.
+    inversion H0; subst.
+    exists (CSeq c1 c2), (KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+    split; [ | constructor; auto].
+    eapply rt_trans_1n; [constructor | repeat constructor].
+  + rename c0 into c1; rename c3 into c2.
+    inversion H0; subst c1'; subst.
+    exists c1, (KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+    split; [| apply (LN_sim_2 c1 _ _ _ nil); auto].
+    apply rt_step; constructor.
+  + rename c2 into c0; rename c3 into c1; rename c4 into c2.
+    inversion H0; subst.
+    - exists (CAss X a'), 
+        (k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto | constructor; auto].
+    - exists CSkip, 
+        (k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto | constructor; auto].
+    - rename c1' into c01; rename c4 into c02.
+      exists c01,
+        (KSeq c02 :: k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto |].
+      apply (LN_sim_2 c01 _ _ _ (KSeq c02 :: k0)); auto.
+
+
+    - destruct k0.
+      { inversion H3; subst.
+        exists c2, (KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+        split; [repeat constructor; auto | constructor; auto]. }
+      inversion H3; subst. 
+      exists c1',
+        (k1 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto | constructor; auto].
+    - destruct k0.
+      { inversion H3; subst.  
+        exists c2,
+          (KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+        split; [| constructor].
+        eapply rt_trans_1n; [constructor |].
+        eapply rt_trans_1n; [constructor |].
+        eapply rt_trans_1n; [constructor |].
+        eapply rt_trans_1n; [constructor |].
+        eapply rt_trans_1n; [constructor |].
+        eapply rt_trans_1n; [constructor |].
+
+
+
+        
+      
+      }
+      inversion H3; subst.
+      exists CCont, 
+        (k1 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto | constructor; auto].
+    - destruct k0.
+      { inversion H3; subst.
+        exists 
+      
+      }
+      inversion H3; subst.
+      exists CBreak,  
+        (k1 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto | constructor; auto].
+    - rename c3 into c01; rename c4 into c02.
+      exists (CIf b' c01 c02),
+        (k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto | constructor; auto].
+    - rename c1' into c01; rename c4 into c02.
+      exists c01,
+        (k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto | constructor; auto].
+    - rename c3 into c01; rename c1' into c02.
+      exists c02,
+        (k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto | constructor; auto].
+    - 
+
+
+    
+
+
+
+
+   
+
+
+
+
 
 Theorem loop_nocontinue_valid_smallstep : forall P c1 c2 Q R1 R2,
   nocontinue c1 ->
