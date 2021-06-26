@@ -207,6 +207,49 @@ Ltac auto_halt :=
   end
 .
 
+Lemma fill_cstep_inv: forall c c' k k0 k'' st st',
+  ~ Halt c k -> cstep (c, k ++ k0, st) (c', k'', st') ->
+  exists k', k'' = k' ++ k0 /\ cstep (c, k, st) (c', k', st').
+Proof.
+  intros.
+  revert k'' H0.
+  induction k; intros; simpl in *.
+  - inversion H0; subst;
+    match goal with
+    | H: ~ Halt ?c _ |- _ =>
+      match c with
+      | CSkip => exfalso; apply H; auto_halt
+      | CBreak => exfalso; apply H; auto_halt
+      | CCont => exfalso; apply H; auto_halt
+      | _ => idtac
+      end
+    | _ => idtac
+    end.
+    + exists nil; split; auto; constructor; auto.
+    + exists nil; split; auto; constructor; auto.
+    + exists (KSeq c2 :: nil); split; auto; constructor; auto.
+    + exists nil; split; auto; constructor; auto.
+    + exists nil; split; auto; constructor; auto.
+    + exists nil; split; auto; constructor; auto.
+    + exists (KLoop1 c1 c2 :: nil); split; auto; constructor; auto.
+  - inversion H0; subst;
+    match goal with
+    | H0: cstep (_, ?a :: ?k ++ _, _) (_, ?a :: ?k ++ _, _) |- _ =>
+        exists (a :: k); split; auto; constructor; auto
+    | _ => idtac
+    end.
+    + exists (KSeq c2 :: a :: k); split; auto; constructor.
+    + exists k; split; auto; constructor.
+    + exists k; split; auto; constructor.
+    + exists k; split; auto; constructor.
+    + exists (KLoop1 c1 c2 :: a :: k); split; auto; constructor.
+    + exists (KLoop1 c1 c2 :: k); split; auto; constructor.
+    + exists (KLoop2 c1 c' :: k); split; auto; constructor.
+    + exists k; split; auto; constructor.
+    + exists k; split; auto; constructor.
+Qed.
+
+
 Definition reducible c k st : Prop := (exists c' k' st', cstep (c, k, st) (c', k', st')).
 
 Lemma reducible_ctx_step : forall c k k' st,
