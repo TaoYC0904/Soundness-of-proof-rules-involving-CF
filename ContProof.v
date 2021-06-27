@@ -10,6 +10,8 @@ Require Import Coq.Relations.Operators_Properties.
 (* Require Import Coq.Arith.PeanoNat. *)
 
 Import Assertion_S.
+
+Import SmallS.
 Import Cont.
 
 Open Scope nat_scope.
@@ -374,17 +376,465 @@ Proof.
   }
 Qed.
 
-Theorem if_seq_valid_continuation : forall P b c1 c2 c3 Q R1 R2,
-  valid_continuation P (CSeq (CIf b c1 c2) c3) Q R1 R2 ->
-  valid_continuation P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2.
+Module Ctx2Com.
+Fixpoint ctx2com' k c : com :=
+  match k with
+  | nil => c
+  | K :: k =>
+    match K with
+    | KSeq c2 => ctx2com' k (CSeq c c2)
+    | KLoop1 c1 c2 => ctx2com' k (CSeq c (CSeq c2 (CFor c1 c2)))
+    | KLoop2 c1 c2 => ctx2com' k (CSeq c (CFor c1 c2))
+    end
+  end.
+
+Definition ctx2com k : com :=
+  match k with
+  | nil => CSkip
+  | K :: k =>
+    match K with
+    | KSeq c => ctx2com' k c
+    | KLoop1 c1 c2 => ctx2com' k (CSeq c2 (CFor c1 c2))
+    | KLoop2 c1 c2 => ctx2com' k (CFor c1 c2)
+    end
+  end.
+
+(* Lemma ctx2com_tail : forall a k K,
+  ctx2com ((a :: k) ++ K :: nil) = CSeq (ctx2com (a :: k)) (ctx2com (K :: nil)).
 Proof.
+  intros.
+  pose proof rev_involutive (a :: k).
+  remember (rev (a :: k)) as k'.
+  clear Heqk'.
+  revert a k H.
+  induction k'; intros.
+  - simpl in H. apply nil_cons in H. inversion H.
+  - simpl in H. *)
+
+
+(* Fixpoint ctx2com k : com :=
+  match k with
+  | nil => CSkip
+  | K :: k =>
+    match K with
+    | KSeq c => 
+        match k with
+        | nil => c
+        | _ => CSeq c (ctx2com k)
+        end
+    | KLoop1 c1 c2 => 
+        match k with
+        | nil => CSeq c2 (CFor c1 c2)
+        | _ => CSeq (CSeq c2 (CFor c1 c2)) (ctx2com k)
+        end
+    | KLoop2 c1 c2 => 
+        match k with
+        | nil => CFor c1 c2
+        | _ => CSeq (CFor c1 c2) (ctx2com k)
+        end
+    end
+  end. *)
+End Ctx2Com.
+
+Module reverse_Ctx2Com.
+
+Fixpoint ctx2com' k : com :=
+  match k with
+  | nil => CSkip
+  | K :: k =>
+    match K with
+    | KSeq c => 
+        match k with
+        | nil => c
+        | _ => CSeq (ctx2com' k) c
+        end
+    | KLoop1 c1 c2 => 
+        match k with
+        | nil => CSeq c2 (CFor c1 c2)
+        | _ => CSeq (ctx2com' k) (CSeq c2 (CFor c1 c2))
+        end
+    | KLoop2 c1 c2 => 
+        match k with
+        | nil => CFor c1 c2
+        | _ => CSeq (ctx2com' k) (CFor c1 c2)
+        end
+    end
+  end.
+
+Definition ctx2com k : com := ctx2com' (rev k).
+
+Lemma ctx2com_tail : forall a k K,
+  ctx2com ((a :: k) ++ K :: nil) = CSeq (ctx2com (a :: k)) (ctx2com (K :: nil)).
+Proof.
+  intros.
+  unfold ctx2com.
+  remember (rev (K :: nil)) as k'.
+  simpl.
+  rewrite rev_app_distr.
+  rewrite <- Heqk'.
+  simpl in Heqk'.
+  subst.
+  remember (rev k) as k'.
+  clear k Heqk'. rename k' into k.
+  assert ((K :: nil) ++ k = K :: k); [auto |].
+  rewrite H; clear H.
+  revert K.
+  induction k; intros.
+  - simpl. destruct K, a; auto.
+  - remember (a0 :: k) as k'.
+    simpl.
+    destruct K; subst;
+    rewrite IHk; auto.
+Qed.
+
+End reverse_Ctx2Com.
+
+
+Fixpoint ctx_split k : continuation * continuation * continuation :=
+  match k with
+  | nil => (nil, nil, nil)
+  | K :: k =>
+    match K with 
+    | KSeq c =>
+      match (ctx_split k) with 
+      | (k1, k2, k3) => (KSeq c :: k1, k2, k3)
+      end
+    | KLoop1 c1 c2 | KLoop2 c1 c2 =>
+      (nil, K :: nil, k)
+    end
+  end.
+
+Lemma ctx_split_k : forall k ka kb kc,
+  ctx_split k = (ka, kb, kc) ->
+  k = ka ++ kb ++ kc.
+Proof.
+  intro.
+  induction k; intros; simpl in H.
+  - inversion_clear H; auto.
+  - destruct a.
+    + destruct (ctx_split k) as [[k1 k2] k3]; inversion H; subst.
+      simpl. f_equal.
+      apply IHk; auto.
+    + inversion_clear H. auto.
+    + inversion_clear H. auto.
+Qed.
+
+Inductive no_loop_ctx : continuation -> Prop :=
+| nil_no_loop : no_loop_ctx nil
+| kseq_no_loop : forall c k, no_loop_ctx k -> no_loop_ctx (KSeq c :: k)
+.
+
+Lemma safe_break_no_loop : forall k st,
+  no_loop_ctx k -> safe CBreak k st.
+Proof.
+  intros.
+  induction k.
+  - intros n; constructor.
+  - inversion H; subst.
+    specialize (IHk H1); clear H1.
+    intros n.
+    destruct n; constructor.
+    + exists CBreak, k, st; constructor.
+    + intros.
+      inversion H0; subst.
+      apply IHk.
+Qed.
+
+Lemma ctx_split_ka : forall k ka kb kc,
+  ctx_split k = (ka, kb, kc) -> no_loop_ctx ka.
+Proof.
+  intro.
+  induction k; intros; simpl in H.
+  - inversion_clear H; constructor.
+  - destruct a.
+    + destruct (ctx_split k) as [[k1 k2] k3]; inversion H; subst.
+      constructor. apply (IHk k1 kb kc); auto.
+    + inversion_clear H; constructor.
+    + inversion_clear H; constructor.
+Qed.
+
+Lemma ctx_split_kb : forall k ka kb kc,
+  ctx_split k = (ka, kb, kc) ->
+  kb = nil \/ exists K c1 c2, kb = K :: nil /\ (K = KLoop1 c1 c2 \/ K = KLoop2 c1 c2).
+Proof.
+  intro.
+  induction k; intros; simpl in H.
+  - inversion_clear H; left; auto.
+  - destruct a.
+    + destruct (ctx_split k) as [[k1 k2] k3]; inversion H; subst.
+      apply (IHk k1 _ kc); auto.
+    + right.
+      inversion_clear H.
+      exists (KLoop1 c1 c2), c1, c2; auto.
+    + right.
+      inversion_clear H.
+      exists (KLoop2 c1 c2), c1, c2; auto.
+Qed.
+
+Lemma ctx_split_kc : forall k ka kb kc,
+  ctx_split k = (ka, kb, kc) ->
+  kb = nil -> kc = nil.
+Proof.
+  intro.
+  induction k; intros; simpl in H.
+  - inversion_clear H; auto.
+  - destruct a.
+    + destruct (ctx_split k) as [[k1 k2] k3]; inversion H; subst.
+      apply (IHk k1 nil kc); auto.
+    + inversion H; subst.
+      inversion H3.
+    + inversion H; subst.
+      inversion H3.
+Qed.
+
+
+(* Import Ctx2Com. *)
+Import reverse_Ctx2Com.
+
+Definition con_safe_convert k : continuation :=
+  match (ctx_split k) with
+  | (ka, kb, kc) =>
+    KSeq (ctx2com (ka ++ kb)) :: KSeq CBreak :: KLoop1 CSkip dead :: kc
+  end.
+
+Lemma continue_csc_guarded : forall P k,
+  guard P CCont (con_safe_convert k).
+Proof.
+  unfold guard.
+  intros.
+  intros n.
+  unfold con_safe_convert.
+  destruct (ctx_split k) as [[k1 k2] k3].
+
+  destruct n; [constructor |].
+  apply safe_Pre; [exists CCont, (KSeq CBreak :: KLoop1 CSkip dead :: k3), st; constructor |].
+  intros. inversion_clear H0.
+
+  destruct n; [constructor |].
+  apply safe_Pre; [exists CCont, (KLoop1 CSkip dead :: k3), st'; constructor |].
+  intros. inversion_clear H0.
+
+  destruct n; [constructor |].
+  apply safe_Pre; [exists dead, (KLoop2 CSkip dead :: k3), st'0; constructor |].
+  intros. inversion_clear H0.
+
+  apply dead_safe.
+Qed.
+
+(* Inductive skipcsc_sim1 : (com * continuation) -> (com * continuation) -> Prop :=
+| skipcsc_sim1_id : forall c k, skipcsc_sim1 (c, k) (c, k)
+| skipcsc_sim1_0 : forall c k c1 c2 kc,
+    skipcsc_sim1 (c, k ++ KSeq CBreak :: KLoop1 c1 c2 :: kc)
+                 (c, k ++ kc)
+| skipcsc_sim1_1 : 
+    skipcsc_sim1 ()
+. *)
+
+Lemma skip_csc_guarded : forall P k,
+  guard P CSkip k ->
+  guard P CSkip (con_safe_convert k).
+Proof.
+  unfold con_safe_convert.
+  intros.
+  destruct (ctx_split k) as [[ka kb] kc] eqn:H0.
+  pose proof ctx_split_k _ _ _ _ H0; subst.
+  pose proof ctx_split_ka _ _ _ _ H0.
+  pose proof ctx_split_kb _ _ _ _ H0.
+  pose proof ctx_split_kc _ _ _ _ H0.
+  destruct H2;
+  [| clear H3; destruct H2 as (K & c1 & c2 & ? & [? | ?]); subst].
+  {
+    specialize (H3 H2); subst.
+    simpl in *. rewrite app_nil_r in *.
+    admit.
+  }
+  {
+    simpl in *.
+    intros st ?.
+    specialize (H _ H2).
+
+    destruct ka.
+    - unfold ctx2com. simpl in *. admit.
+    - rewrite ctx2com_tail.
+      unfold ctx2com at 2; simpl. admit.
+  }
+  {
+    simpl in *.
+    intros st ?.
+    specialize (H _ H2).
+
+    destruct ka.
+    - unfold ctx2com. simpl in *. admit.
+    - rewrite ctx2com_tail.
+      unfold ctx2com at 2; simpl. admit.
+  }
 Admitted.
 
-(* Already proved in Iris-CF, leave to the last *)
+Inductive breakcsc_sim : (com * continuation) -> (com * continuation) -> Prop :=
+| breakcsc_sim_id : forall c k, breakcsc_sim (c, k) (c, k)
+| breakcsc_sim_1 : forall k k', no_loop_ctx k ->
+      breakcsc_sim (CBreak, k ++ k') (CBreak, k')
+.
+
+Lemma breakcsc_sim_is_simulation : simulation breakcsc_sim.
+Proof.
+  unfold simulation; intros.
+  split; [| split]; intros.
+  {
+    destruct H0 as [? | [? | ?]]; inversion H0; subst;
+    inversion H; subst; auto.
+    destruct k2; [| apply eq_Symmetric, app_cons_not_nil in H1; inversion H1].
+    rewrite app_nil_r in H1; subst. left; auto.
+  }
+  {
+    inversion H0; subst; inversion H; subst; try constructor.
+    (* exfalso; apply H3; simpl; auto. *)
+  }
+  {
+    inversion H; subst.
+    - exists c1', k1'; split; constructor; auto.
+    - destruct k; simpl in H0; [exists c1', k1'; split; constructor; auto|].
+      inversion H0; subst; [| inversion H2 | inversion H2].
+      exists CBreak, k2; split; [apply rt_refl | constructor].
+      inversion H2; subst; auto.
+  }
+Qed.
+
+Lemma break_csc_guarded : forall P k,
+  guard P CBreak k ->
+  guard P CBreak (con_safe_convert k).
+Proof.
+  unfold con_safe_convert.
+  intros.
+  destruct (ctx_split k) as [[ka kb] kc] eqn:H0.
+  pose proof ctx_split_k _ _ _ _ H0; subst.
+  pose proof ctx_split_ka _ _ _ _ H0.
+  pose proof ctx_split_kb _ _ _ _ H0.
+  pose proof ctx_split_kc _ _ _ _ H0.
+  destruct H2;
+  [| clear H3; destruct H2 as (K & c1 & c2 & ? & [? | ?]); subst].
+  {
+    specialize (H3 H2); subst.
+    simpl in *. rewrite app_nil_r in *.
+    intros ? _ n.
+    destruct n; [constructor |].
+    apply safe_Pre; [exists CBreak, (KSeq CBreak :: KLoop1 CSkip dead :: nil), st; constructor | intros].
+    inversion H2; subst.
+    destruct n; [constructor |].
+    apply safe_Pre; [exists CBreak, (KLoop1 CSkip dead :: nil), st'; constructor | intros].
+    inversion H3; subst.
+    destruct n; [constructor |].
+    apply safe_Pre; [exists CSkip, nil, st'0; constructor | intros].
+    inversion H4; subst; constructor.
+  }
+  {
+    simpl in *.
+    intros st ?.
+    specialize (H _ H2).
+    
+    destruct ka.
+    - unfold ctx2com. simpl in *. 
+      replace (KSeq (CSeq c2 (CFor c1 c2)) :: KSeq CBreak :: KLoop1 CSkip dead :: kc) with ((KSeq (CSeq c2 (CFor c1 c2)) :: KSeq CBreak :: nil) ++ KLoop1 CSkip dead :: kc); auto.
+      assert (no_loop_ctx (KSeq (CSeq c2 (CFor c1 c2)) :: KSeq CBreak :: nil)); [repeat constructor |].
+      apply (safe_sim _ _ _ _ _ _ breakcsc_sim_is_simulation (breakcsc_sim_1 _ _  H3)).
+
+      intros n.
+      specialize (H n).
+      destruct n; [constructor |].
+      apply safe_Pre; [exists CSkip, kc, st; constructor |].
+      inversion 1; subst.
+      inversion H; subst.
+      apply H7; constructor.
+    - replace (KSeq (ctx2com ((k :: ka) ++ KLoop1 c1 c2 :: nil))
+    :: KSeq CBreak :: KLoop1 CSkip dead :: kc) with ((KSeq (ctx2com ((k :: ka) ++ KLoop1 c1 c2 :: nil))
+    :: KSeq CBreak :: nil) ++ KLoop1 CSkip dead :: kc); auto.
+      assert (no_loop_ctx (KSeq (ctx2com ((k :: ka) ++ KLoop1 c1 c2 :: nil)) :: KSeq CBreak :: nil)); [repeat constructor|].
+      apply (safe_sim _ _ _ _ _ _ breakcsc_sim_is_simulation (breakcsc_sim_1 _ _  H3)).
+
+      assert (safe CBreak (KLoop1 c1 c2 :: kc) st).
+      {
+        revert H H1. clear. intros.
+        revert dependent k. induction ka; intros.
+        - inversion H1; subst.
+          simpl in H.
+          intros n. specialize (H (S n)).
+          inversion H; subst.
+          apply H4. constructor.
+        - remember (a :: ka) as k'.
+          inversion H1; subst.
+          apply (IHka a); auto.
+          intros n. specialize (H (S n)).
+          inversion H; subst.
+          apply H4. constructor.
+      }
+    
+      intros n. specialize (H4 n).
+      destruct n; [constructor |].
+      apply safe_Pre; [exists CSkip, kc, st; constructor | intros].
+      inversion H5; subst.
+      inversion H4; subst.
+      apply H8; constructor.
+  }
+  {
+    simpl in *.
+    intros st ?.
+    specialize (H _ H2).
+
+    destruct ka.
+    - unfold ctx2com. simpl in *. 
+      replace (KSeq (CFor c1 c2) :: KSeq CBreak :: KLoop1 CSkip dead :: kc) with ((KSeq (CFor c1 c2) :: KSeq CBreak :: nil) ++ KLoop1 CSkip dead :: kc); auto.
+      assert (no_loop_ctx (KSeq (CFor c1 c2) :: KSeq CBreak :: nil)); [repeat constructor |].
+      apply (safe_sim _ _ _ _ _ _ breakcsc_sim_is_simulation (breakcsc_sim_1 _ _  H3)).
+
+      intros n.
+      specialize (H n).
+      destruct n; [constructor |].
+      apply safe_Pre; [exists CSkip, kc, st; constructor |].
+      inversion 1; subst.
+      inversion H; subst.
+      apply H7; constructor.
+    - replace (KSeq (ctx2com ((k :: ka) ++ KLoop2 c1 c2 :: nil))
+    :: KSeq CBreak :: KLoop1 CSkip dead :: kc) with ((KSeq (ctx2com ((k :: ka) ++ KLoop2 c1 c2 :: nil))
+    :: KSeq CBreak :: nil) ++ KLoop1 CSkip dead :: kc); auto.
+      assert (no_loop_ctx (KSeq (ctx2com ((k :: ka) ++ KLoop2 c1 c2 :: nil)) :: KSeq CBreak :: nil)); [repeat constructor|].
+      apply (safe_sim _ _ _ _ _ _ breakcsc_sim_is_simulation (breakcsc_sim_1 _ _  H3)).
+
+      assert (safe CBreak (KLoop2 c1 c2 :: kc) st).
+      {
+        revert H H1. clear. intros.
+        revert dependent k. induction ka; intros.
+        - inversion H1; subst.
+          simpl in H.
+          intros n. specialize (H (S n)).
+          inversion H; subst.
+          apply H4. constructor.
+        - remember (a :: ka) as k'.
+          inversion H1; subst.
+          apply (IHka a); auto.
+          intros n. specialize (H (S n)).
+          inversion H; subst.
+          apply H4. constructor.
+      }
+    
+      intros n. specialize (H4 n).
+      destruct n; [constructor |].
+      apply safe_Pre; [exists CSkip, kc, st; constructor | intros].
+      inversion H5; subst.
+      inversion H4; subst.
+      apply H8; constructor.
+  }
+Qed.
+
 Theorem nocontinue_valid_continuation : forall P c Q R1 R2 R2',
   nocontinue c ->
   valid_continuation P c Q R1 R2 ->
   valid_continuation P c Q R1 R2'.
+Proof.
+Admitted.
+
+Theorem if_seq_valid_continuation : forall P b c1 c2 c3 Q R1 R2,
+  valid_continuation P (CSeq (CIf b c1 c2) c3) Q R1 R2 ->
+  valid_continuation P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2.
 Proof.
 Admitted.
 
