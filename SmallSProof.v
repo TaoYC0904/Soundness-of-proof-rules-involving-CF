@@ -316,7 +316,7 @@ Qed.
 
 (* Already proved in Iris-CF, leave to the last *)
 Theorem nocontinue_valid_smallstep : forall P c Q R1 R2 R2',
-  nocontinue c ->
+  nocontinue_c c ->
   valid_smallstep P c Q R1 R2 ->
   valid_smallstep P c Q R1 R2'.
 Admitted.
@@ -324,26 +324,26 @@ Admitted.
 Inductive loop_noc_sim : (com * continuation) -> (com * continuation) -> Prop :=
   | LN_sim_id : forall c k, loop_noc_sim (c, k) (c, k)
   | LN_sim_loopnoc : forall c1 c2 k,
-      nocontinue c1 -> nocontinue c2 ->
+      nocontinue_c c1 -> nocontinue_c c2 ->
       loop_noc_sim (CFor c1 c2, k) (CFor (CSeq c1 c2) CSkip, k)
   | LN_sim_1 : forall c1 c2 k,
-      nocontinue c1 -> nocontinue c2 ->
+      nocontinue_c c1 -> nocontinue_c c2 ->
       loop_noc_sim (CSeq c1 CCont, KLoop1 c1 c2 :: k) 
         (CSeq c1 c2, KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k)
   | LN_sim_2 : forall c0 c1 c2 k k0,
-      nocontinue c1 -> nocontinue c2 ->
+      nocontinue_c c1 -> nocontinue_c c2 ->
       loop_noc_sim (c0, k0 ++ KSeq CCont :: KLoop1 c1 c2 :: k)
         (c0, k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k)
   | LN_sim_3 : forall c1 c2 k,
-      nocontinue c1 -> nocontinue c2 ->
+      nocontinue_c c1 -> nocontinue_c c2 ->
       loop_noc_sim (CCont, KLoop1 c1 c2 :: k) 
         (c2, KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k)
   | LN_sim_4 : forall c0 c1 c2 k k0,
-      nocontinue c1 -> nocontinue c2 ->
+      nocontinue_c c1 -> nocontinue_c c2 ->
       loop_noc_sim (c0, k0 ++ KLoop2 c1 c2 :: k)
         (c0, k0 ++ KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k)
   | LN_sim_5 : forall c1 c2 k,
-      nocontinue c1 -> nocontinue c2 ->
+      nocontinue_c c1 -> nocontinue_c c2 ->
       loop_noc_sim (CSkip, KLoop2 c1 c2 :: k)
         (CSkip, KLoop2 (CSeq c1 c2) CSkip :: k).
 
@@ -433,8 +433,8 @@ Proof.
 
 
 Theorem loop_nocontinue_valid_smallstep : forall P c1 c2 Q R1 R2,
-  nocontinue c1 ->
-  nocontinue c2 ->
+  nocontinue_c c1 ->
+  nocontinue_c c2 ->
   valid_smallstep P (CFor (CSeq c1 c2) CSkip) Q R1 R2 ->
   valid_smallstep P (CFor c1 c2) Q R1 R2.
 Admitted. 
