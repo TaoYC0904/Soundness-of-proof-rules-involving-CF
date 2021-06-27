@@ -1,6 +1,7 @@
 Require Import Coq.Lists.List.
 Require Import Shallow.Imp.
 Require Import Shallow.ImpCF.
+Require Import Shallow.lib.RTClosure.
 (* Import Assertion_S. *)
 
 (* Print state. 
@@ -131,6 +132,34 @@ Fixpoint nocontinue_k (k : continuation) : Prop :=
   end.
 
 Definition nocontinue c k : Prop := nocontinue_k (KSeq c :: k).
+
+Lemma cstep_preserve_nocontinue : forall c1 c2 k1 k2 st1 st2,
+  cstep (c1, k1, st1) (c2, k2, st2) ->
+  nocontinue c1 k1 ->
+  nocontinue c2 k2.
+Proof.
+  intros.
+  inversion H; subst; auto;
+  unfold nocontinue in *; simpl in *; tauto.
+Qed.
+
+Lemma mstep_preserve_nocontinue : forall c1 c2 k1 k2 st1 st2,
+  mstep (c1, k1, st1) (c2, k2, st2) ->
+  nocontinue c1 k1 ->
+  nocontinue c2 k2.
+Proof.
+  intros.
+  remember (c1, k1, st1) as prog1.
+  remember (c2, k2, st2) as prog2.
+  revert c1 k1 st1 Heqprog1 H0.
+  unfold mstep in H.
+  rewrite rt_rt1n_iff in H.
+  induction H; intros; subst.
+  - inversion Heqprog1; subst; auto.
+  - destruct y as [[c1' k1'] st1'].
+    apply (IHclos_refl_trans_1n eq_refl _ _ _ eq_refl).
+    apply (cstep_preserve_nocontinue _ _ _ _ _ _ H H1).
+Qed.
 
 Definition simulation (sim : (com * continuation) -> (com * continuation) -> Prop) : Prop := forall c1 k1 c2 k2,
   sim (c1, k1) (c2, k2) ->  (* c2 simulates c1 *)
