@@ -509,7 +509,7 @@ Fixpoint nocontinue (c : com) : Prop :=
   | CAss _ _      => True
   | CSeq c1 c2    => (nocontinue c1) /\ (nocontinue c2)
   | CIf b c1 c2   => (nocontinue c1) /\ (nocontinue c2)
-  | CFor c1 c2    => (nocontinue c1) /\ (nocontinue c2)
+  | CFor c1 c2    => True
   | CBreak        => True 
   | CCont         => False
   end.
@@ -540,11 +540,12 @@ Proof.
     - destruct H0.
       specialize (IHc2 H1 st1).
       apply IHc2. exists st2. tauto.
-  + simpl in H; destruct H.
-    destruct H0 as [st2 ?].
-    simpl in H0. destruct H0 as [n ?].
-    destruct n; simpl in H0; destruct H0. try inversion H2.
-    destruct H0. inversion H2.
+  + destruct H0 as [st2 ?].
+    simpl in H0.
+    destruct H0 as [n ?].
+    destruct n; simpl in H0.
+    - destruct H0. inversion H1.
+    - destruct H0 as [st3 [? ?]]. inversion H1.
   + destruct H0 as [st2 ?].
     simpl in H0.
     destruct H0. inversion H1.
