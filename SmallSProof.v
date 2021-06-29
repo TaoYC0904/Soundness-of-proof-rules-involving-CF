@@ -358,9 +358,13 @@ Proof.
       try auto; exfalso; eapply nil_app_neq; rewrite H2; auto. }
   { intros.
     inversion H0; subst. inversion H; subst; try tauto.
-    + admit.      
-    + admit.
-    + inversion H; subst; try tauto. admit.
+    + destruct k1; inversion H2; subst; constructor.
+    + destruct k1; inversion H2; subst; constructor.
+    + inversion H; subst; try tauto.
+      - destruct k1; inversion H2; subst; constructor.
+      - destruct k1. 
+        { inversion H2; subst.         }
+        inversion H2; subst; [| constructor].
   }
   intros.
   inversion H; subst. 
