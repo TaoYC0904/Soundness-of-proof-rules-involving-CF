@@ -10,6 +10,8 @@ Inductive com : Type :=
   | CFor (c1 (* body *) c2 (* incr *) : com)
   | CBreak
   | CCont
+  | CFor1 (c0 (* head *) c1 c2 : com)
+  | CFor2 (c0 (* head *) c1 c2 : com)
 .
 
 Inductive exit_kind: Type :=
@@ -86,6 +88,7 @@ Fixpoint ceval (c: com): state -> exit_kind -> state -> Prop :=
   | CFor c1 c2 => for_sem (ceval c1) (ceval c2)
   | CBreak => break_sem
   | CCont => cont_sem
+  | _ => fun _ _ _ => False
   end.
 
 Inductive KElements: Type :=
@@ -171,6 +174,13 @@ Inductive cstep: (com * continuation * state) -> (com * continuation * state) ->
   | CS_ForBreak2 : forall c1 c2 k st,
       cstep (CBreak, (KLoop2 c1 c2) :: k, st)
             (CSkip, k, st)
+  
+  | CS_For1 : forall c0 c1 c2 k st,
+      cstep (CFor1 c0 c1 c2, k, st)
+            (c0, KLoop1 c1 c2 :: k, st)
+  | CS_For2 : forall c0 c1 c2 k st,
+      cstep (CFor2 c0 c1 c2, k, st)
+            (c0, KLoop2 c1 c2 :: k, st)
 .
 
 Lemma cstep_ctx_step: forall c k st c' k' st' k'',
@@ -232,6 +242,8 @@ Proof.
     + exists nil; split; auto; constructor; auto.
     + exists nil; split; auto; constructor; auto.
     + exists (KLoop1 c1 c2 :: nil); split; auto; constructor; auto.
+    + exists (KLoop1 c1 c2 :: nil); split; auto; constructor; auto.
+    + exists (KLoop2 c1 c2 :: nil); split; auto; constructor; auto.
   - inversion H0; subst;
     match goal with
     | H0: cstep (_, ?a :: ?k ++ _, _) (_, ?a :: ?k ++ _, _) |- _ =>
@@ -247,6 +259,8 @@ Proof.
     + exists (KLoop2 c1 c' :: k); split; auto; constructor.
     + exists k; split; auto; constructor.
     + exists k; split; auto; constructor.
+    + exists (KLoop1 c1 c2 :: a :: k); split; auto; constructor.
+    + exists (KLoop2 c1 c2 :: a :: k); split; auto; constructor.
 Qed.
 
 
@@ -311,6 +325,10 @@ Proof.
     + left. exists CCont, k, st. constructor.
     + left. exists c2, ((KLoop2 c1 c2) :: k), st. constructor.
     + right; constructor.
+  - right; left.
+    exists c1, (KLoop1 c2 c3 :: k), st; constructor.
+  - right; left.
+    exists c1, (KLoop2 c2 c3 :: k), st; constructor.
 Qed.
 
 Lemma halt_reducible_ex : forall c k st,
