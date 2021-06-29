@@ -114,6 +114,7 @@ Fixpoint nocontinue_c (c : com) : Prop :=
   | CFor c1 c2    => True
   | CBreak        => True 
   | CCont         => False
+  | CFor1 _ _ _ | CFor2 _ _ _ => True
   end.
 
 Fixpoint hasloop_k k : Prop :=
