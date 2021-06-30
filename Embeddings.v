@@ -16,6 +16,14 @@ Definition Assertion : Type := state -> Prop.
 
 Definition Assertion_denote (st : state) (P : Assertion) : Prop := P st.
 
+Definition entails (P Q : Assertion) : Prop :=
+  forall st, P st -> Q st.
+
+Lemma entails_refl: forall P, entails P P.
+Proof.
+  intros; unfold entails; auto.
+Qed.
+
 End Assertion_Shallow.
 
 Import Assertion_Shallow.

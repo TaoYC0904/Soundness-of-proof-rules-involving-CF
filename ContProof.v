@@ -9,12 +9,23 @@ Require Import Coq.Classes.RelationClasses.
 Require Import Coq.Relations.Operators_Properties.
 (* Require Import Coq.Arith.PeanoNat. *)
 
-Import Assertion_S.
+Import Assertion_Shallow.
 
 Import SmallS.
 Import Cont.
 
 Open Scope nat_scope.
+
+Lemma consequence_valid_continuation: forall c P P' Q Q' R1 R1' R2 R2',
+  entails P' P ->
+  entails Q Q' ->
+  entails R1 R1' ->
+  entails R2 R2' ->
+  valid_continuation P c Q R1 R2 ->
+  valid_continuation P' c Q' R1' R2'.
+Proof.
+Admitted.
+
 
 Lemma safe_mstep_pre: forall c k st c' k' st',
   safe c k st ->
@@ -49,20 +60,20 @@ Qed.
 
 (* guard = triple + dead *)
 
+Inductive irreducible' : com -> continuation -> state -> Prop :=
+| IR'_IR : forall c k st, irreducible c k st -> irreducible' c k st
+| IR'_step : forall c k st c' k' st', cstep (c, k, st) (c', k', st') -> irreducible' c' k' st' -> irreducible' c k st.
+
 Definition simulation (sim : (com * continuation) -> (com * continuation) -> Prop) : Prop := forall c1 k1 c2 k2,
 sim (c1, k1) (c2, k2) ->  (* c2 simulates c1 *)
 (Halt c1 k1 -> (c1, k1) = (c2, k2) \/
                forall st, exists c' k', cstep (c2, k2, st) (c', k', st) /\
                                         sim (c1, k1) (c', k')) /\
-(forall st, irreducible c1 k1 st -> irreducible c2 k2 st) /\
+(forall st, irreducible c1 k1 st -> irreducible' c2 k2 st) /\
 (forall c1' k1' st st',
   cstep (c1, k1, st) (c1', k1', st') ->
   exists c2' k2',
   mstep (c2, k2, st) (c2', k2', st') /\ sim (c1', k1') (c2', k2')).
-
-(* Inductive irreducible' : com -> continuation -> state -> Prop :=
-| IR'_IR : forall c k st, irreducible c k st -> irreducible' c k st
-| IR'_step : forall c k st c' k' st', cstep (c, k, st) (c', k', st') -> irreducible' c' k' st' -> irreducible' c k st.
 
 Lemma safe_irreducible'_conflict : forall c k st,
   safe c k st -> irreducible' c k st -> False.
@@ -81,19 +92,20 @@ Proof.
     inversion H; subst;
     [inversion H0|inversion H0|inversion H0|].
     apply H4; auto.
-Qed. *)
+Qed.
 
-Lemma safe_sim_term : forall n c1 c2 k1 k2 st sim,
+Lemma safe_sim_term : forall c1 c2 k1 k2 st sim,
   Halt c2 k2 \/ irreducible c2 k2 st ->
   simulation sim ->
   sim (c2, k2) (c1, k1) ->
-  safe_n n c1 k1 st ->
-  safe_n n c2 k2 st.
+  safe c1 k1 st ->
+  safe c2 k2 st.
 Proof.
   intros.
 
   pose proof halt_choice c2 k2 st as [? | [? | ?]].
   - clear H.
+    intros n; specialize (H2 n).
     pose proof (H0 _ _ _ _ H1) as [? _].
     specialize (H H3).
     destruct H3 as [? | [? | ?]]; destruct H3; subst; constructor.
@@ -102,24 +114,15 @@ Proof.
       apply (reducible_irreducible_ex c2 k2 st); auto].
   - pose proof H0 _ _ _ _ H1 as [_ [? _]].
     specialize (H4 _ H3).
-
-    (* test *)
-    (* assert (irreducible' c1 k1 st); [admit |].
-    clear H4.
-
+    exfalso.
+    apply (safe_irreducible'_conflict c1 k1 st); auto.
+  
     
-
-    inversion H2; [constructor; solve_wp_0 | | | |];
-    [admit|admit|admit|]; subst. *)
-
-    
-    (* test *)
-
-    inversion H2; [constructor; solve_wp_0 | | | |]; exfalso;
+    (* inversion H2; [constructor; solve_wp_0 | | | |]; exfalso;
     [ apply (halt_irreducible_ex c1 k1 st); auto; subst; auto_halt |
       apply (halt_irreducible_ex c1 k1 st); auto; subst; auto_halt |
       apply (halt_irreducible_ex c1 k1 st); auto; subst; auto_halt |]; subst.
-    apply (reducible_irreducible_ex c1 k1 st); auto.
+    apply (reducible_irreducible_ex c1 k1 st); auto. *)
 Qed.
 
 Lemma safe_sim : forall c1 c2 k1 k2 st sim,
@@ -132,9 +135,9 @@ Proof.
 
   pose proof halt_choice c2 k2 st.
   destruct H2 as [? | [? | ?]].
-  - intros n; specialize (H1 n).
+  - (* intros n; specialize (H1 n). *)
     assert (Halt c2 k2 \/ irreducible c2 k2 st); [auto |].
-    apply (safe_sim_term _ _ _ _ _ _ _ H3 H H0 H1).
+    apply (safe_sim_term _ _ _ _ _ _ H3 H H0 H1).
   - intros n.
     revert c1 k1 c2 k2 st H0 H1 H2.
     induction n; intros; [constructor |].
@@ -146,16 +149,16 @@ Proof.
 
     pose proof safe_mstep_pre _ _ _ _ _ _ H1 H4.
     pose proof halt_choice c' k' st' as [? | [? | ?]].
-    + specialize (H6 n).
+    + clear IHn; revert n.
       assert (Halt c' k' \/ irreducible c' k' st'); [auto |].
-      apply (safe_sim_term _ _ _ _ _ _ _ H8 H H5 H6).
+      apply (safe_sim_term _ _ _ _ _ _ H8 H H5 H6).
     + apply (IHn _ _ _ _ _ H5 H6 H7).
-    + specialize (H6 n).
+    + clear IHn; revert n.
       assert (Halt c' k' \/ irreducible c' k' st'); [auto |].
-      apply (safe_sim_term _ _ _ _ _ _ _ H8 H H5 H6).
-  - intros n; specialize (H1 n).
+      apply (safe_sim_term _ _ _ _ _ _ H8 H H5 H6).
+  - (* intros n; specialize (H1 n). *)
     assert (Halt c2 k2 \/ irreducible c2 k2 st); [auto |].
-    apply (safe_sim_term _ _ _ _ _ _ _ H3 H H0 H1).
+    apply (safe_sim_term _ _ _ _ _ _ H3 H H0 H1).
 Qed.
 
 Lemma guard_sim : forall c1 c2 k1 k2 P sim,
@@ -241,6 +244,7 @@ Proof.
     - exists CCont, nil; split; constructor. *)
   }
   {
+    constructor.
     inversion H0; subst; inversion H; subst; try constructor.
     (* exfalso; apply H3; simpl; auto. *)
   }
@@ -270,6 +274,7 @@ Proof.
     inversion H; subst; auto.
   }
   {
+    constructor.
     inversion H0; subst; inversion H; subst; try constructor.
   }
   {
@@ -741,6 +746,7 @@ Proof.
       destruct k1; inversion H2.
   }
   {
+    constructor.
     inversion H0; subst; inversion H; subst; try constructor.
     - apply ctx2com_nil_CSkip in H2.
       destruct k0; inversion H2; subst; auto.
@@ -832,6 +838,7 @@ Proof.
     - apply eq_Symmetric, app_cons_not_nil in H3; inversion H3.
   }
   {
+    constructor.
     inversion H0; subst; inversion H; subst; try constructor.
     - destruct ka; inversion H3; subst; simpl in *; constructor.
     - destruct ka; inversion H3; subst; simpl in *; constructor.
@@ -1003,6 +1010,7 @@ Proof.
     rewrite app_nil_r in H1; subst. left; auto.
   }
   {
+    constructor.
     inversion H0; subst; inversion H; subst; try constructor.
     (* exfalso; apply H3; simpl; auto. *)
   }
@@ -1159,48 +1167,214 @@ Inductive noconcsc_sim : (com * continuation) -> (com * continuation) -> Prop :=
 
 Inductive ctx2com_sim' : (com * continuation) -> (com * continuation) -> Prop :=
 | ctx2com_sim'_id : forall c k, ctx2com_sim' (c, k) (c, k)
-| ctx2com_sim'_head : forall c0 k0 k kc,
-    (* no_loop_ctx *)
-    ctx2com_sim' (c0, k0 ++ k ++ kc) (c0, k0 ++ KSeq (ctx2com k) :: kc)
+| ctx2com_sim'_top : forall k k0,
+    ctx2com_sim' (CSkip, k ++ k0) (ctx2com k, k0)
 .
 
-(* 
-KSeq CSkip :: KLoop1 c1 c2 :: nil
-
-
-*)
-
-(* Lemma ctx2com_sim'_is_simulation : simulation ctx2com_sim'.
+Lemma ctx2com_sim'_is_simulation : simulation ctx2com_sim'.
 Proof.
   unfold simulation; intros.
   split; [| split]; intros.
   {
     destruct H0 as [? | [? | ?]]; inversion H0; subst;
-    inversion H; subst; auto;
-    destruct k0, k, kc; unfold ctx2com; simpl in *; inversion H3; subst; right; intros.
-    - exists CSkip, nil; split; constructor.
-    - exists CBreak, nil; split; constructor.
-    - exists CCont, nil; split; constructor.
+    inversion H; subst; auto.
+    destruct k, k2; unfold ctx2com; simpl in *; inversion H2; subst; left; auto.
   }
   {
-    inversion H0; subst; inversion H; subst; try constructor.
-    - destruct k0; [destruct k1; [destruct kc|] |]; simpl in *.
-      + inversion H3; subst; constructor.
-      + admit.
-      + inversion
-    destruct k0, k1, kc; simpl in *; inversion H3; subst; try constructor.
-    2:{}
-    (* exfalso; apply H3; simpl; auto. *)
+    inversion H0; subst; inversion H; subst.
+    - constructor; constructor.
+    - destruct k0; [destruct k2|]; simpl in *; inversion H2; subst.
+      + unfold ctx2com; simpl.
+        constructor; constructor.
+      + clear.
+        unfold ctx2com; simpl.
+        remember (rev k1) as k; clear dependent k1.
+        revert k2.
+        induction k; intros; simpl in *;
+        [eapply IR'_step; constructor; constructor|].
+        destruct a; simpl in *;
+        (eapply IR'_step; [constructor | apply IHk]).
+    - constructor; constructor.
   }
   {
     inversion H; subst.
     - exists c1', k1'; split; constructor; auto.
-    - destruct k; simpl in H0; [exists c1', k1'; split; constructor; auto|].
-      inversion H0; subst; [| inversion H2 | inversion H2].
-      exists CBreak, k2; split; [apply rt_refl | constructor].
-      inversion H2; subst; auto.
+    - exists c1', k1'; split; [| constructor].
+      eapply rt_trans; [| constructor; apply H0].
+      clear.
+      unfold ctx2com.
+      rewrite <- (rev_involutive k) at 2.
+      remember (rev k) as k0; clear Heqk0.
+      revert k2.
+      induction k0; intros; [apply rt_refl|].
+      simpl. rewrite <- app_assoc; simpl.
+      destruct a;
+      (eapply rt_trans; [constructor; constructor | apply IHk0]).
   }
+Qed.
+
+
+Lemma nocontinuecsc_safe_1: forall ka st,
+  safe CSkip (ka ++ KSeq CBreak :: KLoop1 CSkip dead :: nil) st -> safe CSkip ka st.
+Proof.
+  intros.
+  remember CSkip as c.
+  rewrite Heqc in H at 2.
+  clear Heqc.
+  intros n.
+  revert c ka st H.
+  induction n; [constructor|intros].
+  pose proof halt_choice c ka st as [? | [? | ?]].
+  - destruct H0 as [? | [? | ?]]; inversion H0; subst; constructor.
+  - apply safe_Pre; auto; intros.
+    apply IHn. intros m.
+    specialize (H (S m)); inversion H; subst;
+    [ apply app_cons_not_nil in H5; inversion H5|
+      apply app_cons_not_nil in H5; inversion H5|
+      apply app_cons_not_nil in H5; inversion H5|].
+    apply H4. apply cstep_ctx_step; auto.
+  - assert (irreducible c (ka ++ KSeq CBreak :: KLoop1 CSkip dead :: nil) st); [inversion H0; subst; constructor|].
+    specialize (H (S n)).
+    inversion H; subst;
+    [ apply app_cons_not_nil in H5; inversion H5|
+      apply app_cons_not_nil in H5; inversion H5|
+      apply app_cons_not_nil in H5; inversion H5|].
+    exfalso; apply (reducible_irreducible_ex c (ka ++ KSeq CBreak :: KLoop1 CSkip dead :: nil) st); auto.
+Qed.
+
+Lemma nocontinuecsc_safe_2 : forall ka K kc x0 x1 st,
+  K = KLoop1 x0 x1 \/ K = KLoop2 x0 x1 ->
+  safe CSkip (ka ++ K :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st -> safe CSkip (ka ++ K :: kc) st.
+Proof.
+  intros.
+  rename H into HK; rename H0 into H.
+  remember CSkip as c.
+  rewrite Heqc in H at 2.
+  clear Heqc.
+  intros n.
+  revert c ka st H.
+  revert K HK.
+  induction n; [constructor|intros].
+  pose proof halt_choice c ka st as [? | [? | ?]].
+  - destruct H0 as [? | [? | ?]]; inversion H0; subst; simpl in *.
+    + destruct HK; subst.
+      * specialize (H (S n)).
+        inversion H; subst.
+        assert (irreducible CSkip (KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); [constructor|].
+        exfalso; apply (reducible_irreducible_ex CSkip (KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); auto.
+      * apply safe_Pre;
+        [exists (CSeq x0 CCont), (KLoop1 x0 x1 :: kc), st; constructor|intros].
+        inversion H1; subst.
+        rewrite <- (app_nil_l (KLoop1 x0 x1 :: kc)).
+        apply IHn; auto; simpl.
+        clear dependent n.
+        intros n.
+        specialize (H (S n)).
+        inversion H; subst.
+        apply H4; constructor.
+    + destruct HK; subst.
+      * apply safe_Pre;
+        [exists CSkip, kc, st; constructor|intros].
+        inversion H1; subst.
+        specialize (H (S (S (S n)))).
+        inversion H; subst.
+        specialize (H4 _ _ _ (CS_ForBreak1 _ _ _ _)).
+        inversion H4; subst.
+        specialize (H6 _ _ _ (CS_SeqSkip _ _ _)).
+        inversion H6; subst.
+        apply H8; constructor.
+      * apply safe_Pre;
+        [exists CSkip, kc, st; constructor|intros].
+        inversion H1; subst.
+        specialize (H (S (S (S n)))).
+        inversion H; subst.
+        specialize (H4 _ _ _ (CS_ForBreak2 _ _ _ _)).
+        inversion H4; subst.
+        specialize (H6 _ _ _ (CS_SeqSkip _ _ _)).
+        inversion H6; subst.
+        apply H8; constructor.
+    + destruct HK; subst.
+      * apply safe_Pre;
+        [exists x1, (KLoop2 x0 x1 :: kc), st; constructor|intros].
+        inversion H1; subst.
+        rewrite <- (app_nil_l (KLoop2 x0 c' :: kc)).
+        apply IHn; auto; simpl.
+        clear dependent n.
+        intros n.
+        specialize (H (S n)).
+        inversion H; subst.
+        apply H4; constructor.
+      * specialize (H (S n)).
+        inversion H; subst.
+        assert (irreducible CCont (KLoop2 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); [constructor |].
+        exfalso; apply (reducible_irreducible_ex CCont (KLoop2 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); auto.
+  - apply safe_Pre; [apply reducible_ctx_step; auto|intros].
+    apply fill_cstep_inv in H1; [| solve_wp_0].
+    destruct H1 as [? [? ?]]; subst.
+    apply IHn; auto; intros m.
+    specialize (H (S m)); inversion H; subst;
+    [ apply app_cons_not_nil in H5; inversion H5|
+      apply app_cons_not_nil in H5; inversion H5|
+      apply app_cons_not_nil in H5; inversion H5|].
+    apply H4. apply cstep_ctx_step; auto.
+  - assert (irreducible c (ka ++ K :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); [inversion H0; subst; constructor|].
+    specialize (H (S n)).
+    inversion H; subst;
+    [ apply app_cons_not_nil in H5; inversion H5|
+      apply app_cons_not_nil in H5; inversion H5|
+      apply app_cons_not_nil in H5; inversion H5|].
+    exfalso; apply (reducible_irreducible_ex c (ka ++ K :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); auto.
+Qed.
+
+(* Lemma nocontinuecsc_safe_2 : forall ka kc x0 x1 st,
+  safe CSkip (ka ++ KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st -> safe CSkip (ka ++ KLoop1 x0 x1 :: kc) st.
+Proof.
+  intros.
+  remember CSkip as c.
+  rewrite Heqc in H at 2.
+  clear Heqc.
+  intros n.
+  revert c ka st H.
+
+  pose proof le_refl n.
+  remember n as m.
+  rewrite Heqm in H at 2.
+  clear Heqm. revert m H.
+  
+  induction n; intros;
+  [inversion H; subst; constructor|intros].
+  pose proof halt_choice c ka st as [? | [? | ?]].
+  - destruct H1 as [? | [? | ?]]; inversion H1; subst; simpl in *.
+    + specialize (H0 (S n)).
+      inversion H0; subst.
+      assert (irreducible CSkip (KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); [constructor|].
+      exfalso; apply (reducible_irreducible_ex CSkip (KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); auto.
+    + admit.
+    + admit.
+  - destruct m; [constructor |].
+    apply safe_Pre; [apply reducible_ctx_step; auto|intros].
+    apply fill_cstep_inv in H2; [| solve_wp_0].
+    destruct H2 as [? [? ?]]; subst.
+    apply IHn; [lia|]. intros n'.
+    specialize (H0 (S n')); inversion H0; subst;
+    [ apply app_cons_not_nil in H6; inversion H6|
+      apply app_cons_not_nil in H6; inversion H6|
+      apply app_cons_not_nil in H6; inversion H6|].
+    apply H5. apply cstep_ctx_step; auto.
+  - assert (irreducible c (ka ++ KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); [inversion H1; subst; constructor|].
+    specialize (H0 (S n)).
+    inversion H0; subst;
+    [ apply app_cons_not_nil in H6; inversion H6|
+      apply app_cons_not_nil in H6; inversion H6|
+      apply app_cons_not_nil in H6; inversion H6|].
+    exfalso; apply (reducible_irreducible_ex c (ka ++ KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); auto.
 Admitted. *)
+
+(* Lemma nocontinuecsc_safe_3 : forall ka kc x0 x1 st,
+  safe CSkip (ka ++ KLoop2 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st -> safe CSkip (ka ++ KLoop2 x0 x1 :: kc) st.
+Proof.
+Admitted. *)
+
 
 Lemma nocontinue_csc_guard : forall P c k,
   nocontinue c nil ->
@@ -1210,19 +1384,180 @@ Proof.
   intros.
   unfold con_safe_convert in H0.
   destruct (ctx_split k) as [[ka kb] kc] eqn:eq.
-  pose proof ctx_split_k _ _ _ _ eq; subst.
   rewrite <- app_nil_l in H0.
-  apply (guard_sim c c (nil ++ KSeq (ctx2com (ka ++ kb)) :: KSeq CBreak :: KLoop1 CSkip dead :: kc) (nil ++ (ka ++ kb) ++ KSeq CBreak :: KLoop1 CSkip dead :: kc) _ _ ctx2com_sim'_is_simulation (ctx2com_sim'_head _ _ _ _)) in H0.
-  rewrite app_nil_l, <- app_assoc in H0.
-  
-  intros st ?.
-  specialize (H0 _ H1); clear dependent P.
-  
+  rewrite <- app_nil_l.
+  remember nil as k0; clear Heqk0.
+  rename c into c0.
+
+  pose proof ctx_split_k _ _ _ _ eq; subst.
   pose proof ctx_split_ka _ _ _ _ eq.
   pose proof ctx_split_kb _ _ _ _ eq.
   pose proof ctx_split_kc _ _ _ _ eq.
   clear eq.
 
+  intros st ?.
+  specialize (H0 _ H4); clear H4.
+
+  intros n.
+  revert dependent st; revert dependent k0; revert c0.
+  induction n; [constructor | intros].
+
+  pose proof halt_choice c0 k0 st as [? | [? | ?]].
+  {
+    remember (S n) as m; clear dependent n.
+    revert m; replace (forall m, safe_n m c0 (k0 ++ ka ++ kb ++ kc) st) with (safe c0 (k0 ++ ka ++ kb ++ kc) st); auto.
+    destruct H4 as [? | [? | ?]]; simpl in *; inversion H4; subst.
+    {
+      destruct H2; subst.
+      {
+        specialize (H3 eq_refl); subst.
+        simpl in *. rewrite app_nil_r in *.
+        assert (safe (ctx2com ka) (KSeq CBreak :: KLoop1 CSkip dead :: nil) st).
+        {
+          intros n.
+          specialize (H0 (S n)).
+          inversion H0; subst.
+          apply H5; constructor.
+        }
+        clear H0.
+
+        apply (safe_sim _ _ _ _ _ _ ctx2com_sim'_is_simulation (ctx2com_sim'_top _ _)) in H2.
+        
+        apply nocontinuecsc_safe_1; auto.
+      }
+      {
+        destruct H2 as (? & ? & ? & ? & [? | ?]); subst; clear H3; simpl in *.
+        - unfold ctx2com in H0.
+          rewrite rev_app_distr in H0.
+          simpl in H0.
+          assert (safe (ctx2com' (rev ka)) (KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st).
+          {
+            intros n. specialize (H0 (S (S n))).
+            inversion H0; subst.
+            specialize (H5 _ _ _ (CS_SeqSkip _ _ _)).
+            inversion H5; subst.
+            specialize (H7 _ _ _ (CS_For1 _ _ _ _ _)).
+            auto.
+          }
+          clear H0.
+
+          apply (safe_sim _ _ _ _ _ _ ctx2com_sim'_is_simulation (ctx2com_sim'_top _ _)) in H2.
+
+          eapply nocontinuecsc_safe_2; auto.
+        - unfold ctx2com in H0.
+          rewrite rev_app_distr in H0.
+          simpl in H0.
+          assert (safe (ctx2com' (rev ka)) (KLoop2 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st).
+          {
+            intros n. specialize (H0 (S (S n))).
+            inversion H0; subst.
+            specialize (H5 _ _ _ (CS_SeqSkip _ _ _)).
+            inversion H5; subst.
+            specialize (H7 _ _ _ (CS_For2 _ _ _ _ _)).
+            auto.
+          }
+          clear H0.
+
+          apply (safe_sim _ _ _ _ _ _ ctx2com_sim'_is_simulation (ctx2com_sim'_top _ _)) in H2.
+
+          eapply nocontinuecsc_safe_2; auto.
+      }
+    }
+    {
+      destruct H2; subst.
+      {
+        specialize (H3 eq_refl); subst.
+        simpl in *. rewrite app_nil_r in *.
+        clear H0.
+        induction ka; simpl in *.
+        - intros n; constructor.
+        - inversion H1; subst.
+          intros n; destruct n; constructor.
+          + exists CBreak, ka, st; constructor.
+          + intros. inversion H0; subst.
+            apply IHka; auto.
+      }
+      {
+        assert (safe CSkip kc st).
+        {
+          intros n.
+          specialize (H0 (S (S (S n)))).
+          inversion H0; subst.
+          specialize (H7 _ _ _ (CS_SeqBreak _ _ _)).
+          inversion H7; subst.
+          specialize (H9 _ _ _ (CS_SeqBreak _ _ _)).
+          inversion H9; subst.
+          apply H11; constructor.
+        }
+        clear H0.
+        destruct H2 as (? & ? & ? & ? & [? | ?]); subst; clear H3; simpl in *.
+        - induction ka; simpl in *.
+          + intros n.
+            destruct n; [constructor |].
+            apply safe_Pre; [exists CSkip, kc, st; constructor | intros].
+            inversion H0; subst.
+            apply H5.
+          + inversion H1; subst.
+            intros n.
+            destruct n; [constructor |].
+            apply safe_Pre; [exists CBreak, (ka ++ KLoop1 x0 x1 :: kc), st; constructor | intros].
+            inversion H0; subst.
+            apply IHka; auto.
+        - induction ka; simpl in *.
+          + intros n.
+            destruct n; [constructor |].
+            apply safe_Pre; [exists CSkip, kc, st; constructor | intros].
+            inversion H0; subst.
+            apply H5.
+          + inversion H1; subst.
+            intros n.
+            destruct n; [constructor |].
+            apply safe_Pre; [exists CBreak, (ka ++ KLoop2 x0 x1 :: kc), st; constructor | intros].
+            inversion H0; subst.
+            apply IHka; auto.
+      }
+    }
+    {
+      inversion H; destruct H5 as [H5 | H5]; inversion H5.
+    }
+  }
+  {
+    pose proof reducible_ctx_step _ _ (ka ++ kb ++ kc) _ H4.
+    apply safe_Pre; auto; intros; clear H5.
+    apply fill_cstep_inv in H6; [|solve_wp_0].
+    destruct H6 as [k0' [? ?]]; subst.
+    apply IHn.
+    - apply cstep_preserve_nocontinue in H6; auto.
+    - clear dependent n. intros n.
+      specialize (H0 (S n)).
+      inversion H0; subst;
+      [ apply app_cons_not_nil in H9; inversion H9|
+        apply app_cons_not_nil in H9; inversion H9|
+        apply app_cons_not_nil in H9; inversion H9|].
+      apply H8.
+      apply cstep_ctx_step; auto.
+  }
+  {
+    inversion H4; subst; exfalso.
+    - specialize (H0 (S n)).
+      inversion H0; subst.
+      simpl in *.
+      assert (irreducible CSkip
+      (KLoop1 c1 c2
+       :: k ++
+          KSeq (ctx2com (ka ++ kb)) :: KSeq CBreak :: KLoop1 CSkip dead :: kc)
+      st); [constructor |].
+      eapply reducible_irreducible_ex; [apply H6|auto].
+    - specialize (H0 (S n)).
+      inversion H0; subst.
+      simpl in *.
+      assert (irreducible CCont
+      (KLoop2 c1 c2
+       :: k ++
+          KSeq (ctx2com (ka ++ kb)) :: KSeq CBreak :: KLoop1 CSkip dead :: kc)
+      st); [constructor |].
+      eapply reducible_irreducible_ex; [apply H6|auto].
+  }
 Qed.
 
 Lemma nocontinue_valid_continuation_bot : forall P c Q R1 R2,
@@ -1236,17 +1571,23 @@ Proof.
   pose proof continue_csc_guarded R2 k.
   apply break_csc_guarded in H2.
   specialize (H0 _ H1 H2 H3); clear H1 H2 H3.
-Admitted.
+  apply nocontinue_csc_guard; auto.
+Qed.
 
 Theorem nocontinue_valid_continuation : forall P c Q R1 R2 R2',
   nocontinue c nil ->
   valid_continuation P c Q R1 R2 ->
   valid_continuation P c Q R1 R2'.
 Proof.
-  unfold valid_continuation.
   intros.
-  pose proof break_csc_guarded.
-Admitted.
+  pose proof nocontinue_valid_continuation_bot _ _ _ _ _ H H0.
+  eapply (consequence_valid_continuation _ _ _ _ _ _ _ _ _ (entails_refl _) (entails_refl _) (entails_refl _) _ H1).
+  Unshelve.
+  inversion 1.
+Qed.
+
+(* Print Assumptions nocontinue_valid_continuation. *)
+
 
 Theorem if_seq_valid_continuation : forall P b c1 c2 c3 Q R1 R2,
   valid_continuation P (CSeq (CIf b c1 c2) c3) Q R1 R2 ->
