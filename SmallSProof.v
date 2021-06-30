@@ -314,13 +314,53 @@ Proof.
   apply H; auto.
 Qed.
 
-(* Already proved in Iris-CF, leave to the last *)
+Lemma cstep_preserve_nocontinue : forall c1 c2 k1 k2 st1 st2,
+  cstep (c1, k1, st1) (c2, k2, st2) ->
+  nocontinue c1 k1 ->
+  nocontinue c2 k2.
+Proof.
+  intros.
+  inversion H; subst; auto;
+  unfold nocontinue in *; simpl in *; tauto.
+Qed.
+
 Theorem nocontinue_valid_smallstep : forall P c Q R1 R2 R2',
   nocontinue_c c ->
   valid_smallstep P c Q R1 R2 ->
   valid_smallstep P c Q R1 R2'.
-Admitted.
-
+Proof.
+  unfold valid_smallstep.
+  intros.
+  specialize (H0 st H1).
+  unfold WP in *.
+  intros.
+  clear H1.
+  assert (nocontinue c nil).
+  { unfold nocontinue; simpl; auto. }
+  clear H.
+  remember nil as k; clear Heqk.
+  revert c k st H0 H1.
+  induction n; [constructor |].
+  intros.
+  pose proof (H0 1%nat).
+  inversion H; subst.
+  { constructor; auto. }
+  { constructor; auto. }
+  { inversion H1; simpl in *; tauto. }
+  clear H.
+  constructor; try tauto.
+  intros.
+  pose proof (cstep_preserve_nocontinue _ _ _ _ _ _ H H1).
+  apply IHn; try tauto.
+  intros.
+  specialize (H0 (S n0)).
+  inversion H0; subst.
+  - inversion H.
+  - inversion H.
+  - inversion H.
+  - specialize (H7 _ _ _ H); auto.
+Qed.
+ 
 Inductive loop_noc_sim : (com * continuation) -> (com * continuation) -> Prop :=
   | LN_sim_id : forall c k, loop_noc_sim (c, k) (c, k)
   | LN_sim_loopnoc : forall c1 c2 k,
