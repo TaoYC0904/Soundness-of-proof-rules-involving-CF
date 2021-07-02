@@ -707,3 +707,4 @@ Proof.
       split; try split; try tauto.
       left. exists st4. tauto.
 Qed. 
+End rules_sound.
