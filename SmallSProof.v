@@ -234,6 +234,14 @@ Proof.
       split; [| constructor].
       eapply rt_trans_1n; [constructor |].
       apply rt_step; constructor; tauto.
+    - exists c1', (KLoop1 c3 c4 :: KSeq c2 :: k).
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
+    - exists c1', (KLoop2 c3 c4 :: KSeq c2 :: k).
+      split; [| constructor].
+      eapply rt_trans_1n; [constructor |].
+      apply rt_step; constructor; tauto.
 Qed.    
 
 Theorem seq_inv_valid_smallstep : forall P c1 c2 Q R1 R2,
@@ -391,7 +399,6 @@ Inductive loop_noc_sim : (com * continuation) -> (com * continuation) -> Prop :=
       loop_noc_sim (CBreak, KLoop1 c1 c2 :: k)
         (CBreak, KLoop1 (CSeq c1 c2) CSkip :: k).
 
-
 Lemma loop_noc_sim_is_simulation : simulation loop_noc_sim.
 Proof.
   unfold simulation.
@@ -513,6 +520,18 @@ Proof.
       split; [repeat constructor; auto |].
       apply (LN_sim_2 _ _ _ _ k1); auto.
       unfold nocontinue in *; simpl in *; tauto.
+    - rename c1' into c00; rename c4 into c01; rename c5 into c02.
+      exists c00,
+        (KLoop1 c01 c02 :: k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto |].
+      apply (LN_sim_2 _ _ _ _ (KLoop1 c01 c02 :: k0)); auto.
+      unfold nocontinue in *; simpl in *; tauto.
+    - rename c1' into c00; rename c4 into c01; rename c5 into c02.
+      exists c00,
+        (KLoop2 c01 c02 :: k0 ++ KSeq c2 :: KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto |].
+      apply (LN_sim_2 _ _ _ _ (KLoop2 c01 c02 :: k0)); auto.
+      unfold nocontinue in *; simpl in *; tauto.
   + inversion H0; subst.
     rename c0 into c1; rename c1' into c2. 
     exists c2, (KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
@@ -610,6 +629,18 @@ Proof.
         (k1 ++ KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
       split; [repeat constructor; auto |].
       apply (LN_sim_4 _ _ _ _ k1); auto.
+      unfold nocontinue in *; simpl in *; tauto.
+    - rename c1' into c00; rename c4 into c01; rename c5 into c02.
+      exists c00,
+        (KLoop1 c01 c02 :: k0 ++ KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto |].
+      apply (LN_sim_4 _ _ _ _ (KLoop1 c01 c02 :: k0)); auto.
+      unfold nocontinue in *; simpl in *; tauto.
+    - rename c1' into c00; rename c4 into c01; rename c5 into c02.
+      exists c00,
+        (KLoop2 c01 c02 :: k0 ++ KSeq CCont :: KLoop1 (CSeq c1 c2) CSkip :: k).
+      split; [repeat constructor; auto |].
+      apply (LN_sim_4 _ _ _ _ (KLoop2 c01 c02 :: k0)); auto.
       unfold nocontinue in *; simpl in *; tauto.
   + rename c0 into c1; rename c3 into c2.
     inversion H0; subst.
