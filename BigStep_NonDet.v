@@ -244,13 +244,41 @@ Fixpoint ceval (c : com) : com_denote :=
 
 End Denote_Com.
 
-Module Denote_Embeddings.
-Import Denote_Com.
-
+Module Assertion_Shallow.
+Import Denote_Aexp.
+Import Denote_Bexp.
+  
 Definition Assertion : Type := state -> Prop.
 
 Definition Assertion_denote : state -> Assertion -> Prop :=
   fun st P => P st.
+
+Definition andp : Assertion -> Assertion -> Assertion :=
+  fun P Q st => P st /\ Q st. 
+
+Definition orp : Assertion -> Assertion -> Assertion :=
+  fun P Q st => P st \/ Q st.
+
+Definition negp : Assertion -> Assertion :=
+  fun P st => ~ P st.
+
+Definition falsep : Assertion :=
+  fun st => False.
+
+Definition inj : bexp -> Assertion :=
+  fun b st => true_set (beval b) st.
+
+Definition safeb : bexp -> Assertion :=
+  fun b st => ~ error_set (beval b) st. 
+
+Definition derives : Assertion -> Assertion -> Prop :=
+  fun P Q => forall st, P st -> Q st.
+
+End Assertion_Shallow.
+
+Module Denote_Embeddings.
+Import Denote_Com.
+Import Assertion_Shallow.
 
 Definition com_term : com_denote -> state -> state -> Prop :=
   fun DC st1 st2 =>
@@ -272,6 +300,7 @@ End Denote_Embeddings.
 Module rules_sound.
 Import Denote_Com.
 Import Denote_Embeddings.
+Import Assertion_Shallow.
 
 Definition WP (c : com) (Q R1 R2 : Assertion) : state -> Prop :=
   fun st =>
@@ -475,3 +504,225 @@ Proof.
 Qed.
 
 End rules_sound.
+
+Module basic_rules.
+Import Denote_Aexp.
+Import Denote_Bexp.
+Import Denote_Com.
+Import Denote_Embeddings.
+Import Assertion_Shallow.
+
+Theorem hoare_seq_sound : forall P Q R R1 R2 c1 c2,
+  partial_valid P c1 Q R1 R2 ->
+  partial_valid Q c2 R R1 R2 ->
+  partial_valid P (CSeq c1 c2) R R1 R2.
+Proof.
+  intros.
+  unfold partial_valid in *.
+  intros.
+  split; try split; try split.
+  + unfold not; intros.
+    simpl in H2.
+    destruct H2.
+    - specialize (H st1 st2 H1); tauto.
+    - destruct H2 as  [st3 [? ?]].
+      specialize (H st1 st3 H1).
+      assert (Assertion_denote st3 Q). { tauto. }
+      specialize (H0 st3 st2 H4); tauto.
+  + intros.
+    simpl in H2.
+    destruct H2 as [st3 [? ?]].
+    specialize (H st1 st3 H1).
+    assert (Assertion_denote st3 Q). { tauto. }
+    specialize (H0 st3 st2 H4). tauto.
+  + intros.
+    simpl in H2.
+    destruct H2.
+    - specialize (H st1 st2 H1); tauto.
+    - destruct H2 as [st3 [? ?]].
+      specialize (H st1 st3 H1).
+      assert (Assertion_denote st3 Q). { tauto. }
+      specialize (H0 st3 st2 H4). tauto.
+  + intros.
+    simpl in H2.
+    destruct H2.
+    - specialize (H st1 st2 H1); tauto.
+    - destruct H2 as [st3 [? ?]].
+      specialize (H st1 st3 H1).
+      assert (Assertion_denote st3 Q). { tauto. }
+      specialize (H0 st3 st2 H4). tauto.
+Qed.
+
+Theorem hoare_skip_sound : forall P, 
+  partial_valid P CSkip P falsep falsep.
+Proof.
+  intros.
+  unfold partial_valid.
+  intros.
+  split; try split; try split.
+  + unfold not; intros. inversion H0.
+  + intros. simpl in H0; subst; tauto.
+  + intros. inversion H0.
+  + intros. inversion H0.
+Qed.
+
+Lemma true_notfalse : forall b st,
+  true_set (beval b) st ->
+  false_set (beval b) st -> False.
+Proof.
+  induction b; intros.
+  + inversion H0.
+  + inversion H.
+  + admit.
+  + admit.
+  + simpl in *. apply (IHb st); tauto.
+  + simpl in *. 
+    unfold Sets.intersect, Sets.union in *.
+    specialize (IHb1 st); specialize (IHb2 st); tauto.
+Admitted.
+
+Theorem hoare_if_sound : forall P Q R1 R2 b c1 c2,
+  partial_valid (andp P (inj b)) c1 Q R1 R2 ->
+  partial_valid (andp P (negp (inj b))) c2 Q R1 R2 ->
+  partial_valid (andp P (safeb b)) (CIf b c1 c2) Q R1 R2.
+Proof.
+  unfold partial_valid in *.
+  intros.
+  unfold safeb, andp, inj, negp, Assertion_denote in *.
+  split; try split; try split.
+  + simpl. unfold not; intros.
+    destruct H2 as [? | [? | ?]].
+    - tauto.
+    - specialize (H st1 st2); tauto.
+    - specialize (H0 st1 st2).
+      destruct H2.
+      assert (~ true_set (beval b) st1).
+      { unfold not; intros. apply (true_notfalse b st1); tauto. }
+      tauto.
+  + simpl; intros.
+    destruct H2.
+    - specialize (H st1 st2). tauto.
+    - specialize (H0 st1 st2).
+      assert (~ true_set (beval b) st1).
+      { unfold not; intros. apply (true_notfalse b st1); tauto. }
+      tauto.
+  + simpl; intros.
+    destruct H2.
+    - specialize (H st1 st2). tauto.
+    - specialize (H0 st1 st2).
+      assert (~ true_set (beval b) st1).
+      { unfold not; intros. apply (true_notfalse b st1); tauto. }
+      tauto.
+    + simpl; intros.
+    destruct H2.
+    - specialize (H st1 st2). tauto.
+    - specialize (H0 st1 st2).
+      assert (~ true_set (beval b) st1).
+      { unfold not; intros. apply (true_notfalse b st1); tauto. }
+      tauto.
+Qed.
+
+Theorem hoare_break_sound : forall P,
+  partial_valid P CBreak falsep P falsep.
+Proof.
+  unfold partial_valid.
+  intros.
+  split; try split; try split.
+  + unfold not; intros. inversion H0.
+  + intros. inversion H0.
+  + intros. inversion H0. subst. tauto.
+  + intros. inversion H0.
+Qed.
+
+Theorem hoare_cont_sound : forall P,
+  partial_valid P CCont falsep falsep P.
+Proof.
+  unfold partial_valid.
+  intros.
+  split; try split; try split.
+  + unfold not; intros. inversion H0.
+  + intros. inversion H0.
+  + intros. inversion H0.
+  + intros. inversion H0. subst. tauto.
+Qed.
+
+Theorem hoare_consequence_sound : forall P P' Q Q' R1 R1' R2 R2' c,
+  derives P P' ->
+  partial_valid P' c Q' R1' R2' ->
+  derives Q' Q ->
+  derives R1' R1 ->
+  derives R2' R2 ->
+  partial_valid P c Q R1 R2.
+Proof.
+  unfold derives, partial_valid, Assertion_denote in *.
+  intros.
+  specialize (H st1).
+  specialize (H0 st1 st2).
+  specialize (H1 st2).
+  specialize (H2 st2).
+  specialize (H3 st2).
+  split; try split; try split; tauto.
+Qed.
+
+Theorem hoare_for_sound : forall I P c1 c2,
+  partial_valid I (CSeq c1 c2) I P I ->
+  partial_valid I (CFor c1 c2) (orp I P) falsep falsep.
+Proof.
+  unfold partial_valid, orp, falsep, Assertion_denote.
+  intros.
+  split; try split; try split; try tauto.
+  + unfold not; intros.
+    simpl in H1.
+    destruct H1 as [n ?].
+    revert st1 H1 H0; induction n; intros.
+    - simpl in H1.
+      specialize (H st1 st2 H0); destruct H.
+      simpl in H. tauto.
+    - simpl in H1.
+      destruct H1 as [st3 [? ?]].
+      specialize (IHn st3); apply IHn; try tauto.
+      clear IHn H2.
+      destruct H1 as [? | [? | ?]].
+      * destruct H1 as [st4 [? ?]].
+        specialize (H st1 st3 H0).
+        assert (com_normal (ceval (CSeq c1 c2)) st1 st3).
+        { simpl. exists st4; tauto. }
+        tauto.
+      * specialize (H st1 st3 H0).
+        assert (com_cont (ceval (CSeq c1 c2)) st1 st3).
+        { simpl. tauto. }
+        tauto.
+      * specialize (H st1 st3 H0).
+        destruct H1 as [st4 [? ?]].
+        assert (com_cont (ceval (CSeq c1 c2)) st1 st3).
+        { simpl. right. exists st4; tauto. }
+        tauto.
+  + intros.
+    simpl in H1.
+    destruct H1 as [n ?].
+    revert st1 st2 H0 H1; induction n; intros.
+    - simpl in H1.
+      destruct H1.
+      * specialize (H st1 st2).
+        assert (com_break (ceval (CSeq c1 c2)) st1 st2).
+        { simpl. tauto. }
+        tauto.
+      * specialize (H st1 st2).
+        assert (com_break (ceval (CSeq c1 c2)) st1 st2).
+        { simpl. tauto. }
+        tauto.
+    - simpl in H1.
+      destruct H1 as [st3 [? ?]].
+      specialize (IHn st3 st2); apply IHn; try tauto.
+      clear IHn H2.
+      destruct H1 as [? | [? | ?]].
+      * specialize (H st1 st3); tauto.
+      * specialize (H st1 st3).
+        assert (com_cont (ceval (CSeq c1 c2)) st1 st3).
+        { simpl. tauto. }
+        tauto.
+      * specialize (H st1 st3).
+        assert (com_cont (ceval (CSeq c1 c2)) st1 st3).
+        { simpl. tauto. }
+        tauto.
+Qed.
