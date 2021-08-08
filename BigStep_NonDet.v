@@ -268,11 +268,23 @@ Definition falsep : Assertion :=
 Definition inj : bexp -> Assertion :=
   fun b st => true_set (beval b) st.
 
+Definition safea : aexp -> Assertion :=
+  fun a st => ~ (aeval a) st = None.
+
 Definition safeb : bexp -> Assertion :=
   fun b st => ~ error_set (beval b) st. 
 
 Definition derives : Assertion -> Assertion -> Prop :=
   fun P Q => forall st, P st -> Q st.
+
+Definition state_update (st : state) (X : var) (v : option Z) : state :=
+  match v with
+  | Some n => fun Y => if (Nat.eq_dec X Y) then n else st Y
+  | None => fun Y => 0
+  end.
+  
+Definition subst_assertion (P : Assertion) (X : var) (v : state -> option Z) : Assertion :=
+  fun st => P (state_update st X (v st)).
 
 End Assertion_Shallow.
 
@@ -573,13 +585,15 @@ Proof.
   induction b; intros.
   + inversion H0.
   + inversion H.
-  + admit.
-  + admit.
+  + simpl in *.
+    destruct (aeval a1 st), (aeval a2 st); tauto. 
+  + simpl in *.
+    destruct (aeval a1 st), (aeval a2 st); tauto.
   + simpl in *. apply (IHb st); tauto.
   + simpl in *. 
     unfold Sets.intersect, Sets.union in *.
     specialize (IHb1 st); specialize (IHb2 st); tauto.
-Admitted.
+Qed.
 
 Theorem hoare_if_sound : forall P Q R1 R2 b c1 c2,
   partial_valid (andp P (inj b)) c1 Q R1 R2 ->
@@ -726,3 +740,34 @@ Proof.
         { simpl. tauto. }
         tauto.
 Qed.
+
+Theorem hoare_asgn_sound : forall P (X : var) (E : aexp),
+  partial_valid (andp (safea E) (subst_assertion P X (aeval E))) (CAss X E) P falsep falsep.
+Proof.
+  unfold partial_valid.
+  intros.
+  unfold Assertion_denote, andp, safea, subst_assertion in *.
+  split; try split; try split.
+  + unfold not; intros.
+    simpl in *; tauto.
+  + intros; simpl in *.
+    destruct H, H0.
+    remember (state_update st1 X (aeval E st1)) as st2'.
+    assert (forall X, st2 X = st2' X).
+    { intros.
+      subst st2'.
+      destruct (aeval E st1); try tauto.
+      unfold state_update.
+      destruct (Nat.eq_dec X X0).
+      - subst. inversion H0. tauto.
+      - specialize (H2 X0); auto. 
+    }
+    assert (st2 = state_update st1 X (aeval E st1)).
+    { eapply FunctionalExtensionality.functional_extensionality_dep.
+      subst. tauto. }
+    subst; tauto.
+  + intros; simpl in *; tauto.
+  + intros; simpl in *; tauto.
+Qed.
+
+End basic_rules.
