@@ -760,8 +760,7 @@ Proof.
       unfold state_update.
       destruct (Nat.eq_dec X X0).
       - subst. inversion H0. tauto.
-      - specialize (H2 X0); auto. 
-    }
+      - specialize (H2 X0); auto. }
     assert (st2 = state_update st1 X (aeval E st1)).
     { eapply FunctionalExtensionality.functional_extensionality_dep.
       subst. tauto. }
