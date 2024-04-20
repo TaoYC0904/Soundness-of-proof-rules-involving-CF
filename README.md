@@ -1,2 +1,2 @@
-# Soundness of proof rules involving CF
- Proof soundness of some Hoare logic proof rules involving CF
+# Extended Proof Rules
+ Proof soundness of some extended proof rules
