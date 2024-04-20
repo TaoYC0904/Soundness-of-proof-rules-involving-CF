@@ -1,6 +1,6 @@
 -Q . Shallow
 
--Q ./lib Shallow.lib
+
 lib/RTClosure.v
 
 Imp.v

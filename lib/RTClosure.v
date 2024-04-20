@@ -4,6 +4,7 @@ Ltac revert_dependent_except x H :=
     | H0: context [x] |- _ => revert H0; assert_succeeds (revert H)
     end.
 
+
 Ltac revert_dependent_component x H :=
   first
   [

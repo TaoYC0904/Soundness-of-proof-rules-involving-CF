@@ -1967,3 +1967,17 @@ Proof.
     loop_noc_sim loop_noc_sim_is_simulation).
   apply H5; try tauto; constructor; auto.
 Qed.
+
+
+(* Semantic Equivalence Approach *)
+
+Definition eval_like_mstep c1 k1 s1 c2 k2 s2 : Prop :=
+  forall c k s, (Halt c k \/ irreducible c k s) ->
+    mstep (c1, k1, s1) (c, k, s) -> mstep (c2, k2, s2) (c, k, s).
+
+Lemma safe_eval_like: forall c1 k1 s1 c2 k2 s2,
+  eval_like_mstep c2 k2 s2 c1 k1 s1 ->
+  safe c1 k1 s1 ->
+  safe c2 k2 s2.
+Proof.
+  

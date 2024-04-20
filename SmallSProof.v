@@ -275,12 +275,7 @@ Inductive if_seq_sim : (com * continuation) -> (com * continuation) -> Prop :=
   | IS_sim_ifseq : forall b c1 c2 c3 k,
   if_seq_sim (CSeq (CIf b c1 c2) c3, k) (CIf b (CSeq c1 c3) (CSeq c2 c3), k)
   | IS_sim_seq : forall b c1 c2 c3 k,
-  if_seq_sim (CIf b c1 c2, KSeq c3 :: k) (CIf b (CSeq c1 c3) (CSeq c2 c3), k)
-  (* | IS_sim_bfalse : forall c1 c2 c3 k,
-      if_seq_sim (CIf BFalse c1 c2, KSeq c3 :: k) (CSeq c1 c3, k)
-  | IS_sim_btrue : forall c1 c2 c3 k,
-      if_seq_sim (CIf BTrue c1 c2, KSeq c3 :: k) (CSeq c2 c3, k) *)
-  .
+  if_seq_sim (CIf b c1 c2, KSeq c3 :: k) (CIf b (CSeq c1 c3) (CSeq c2 c3), k).
 
 Lemma if_seq_sim_is_simulation :
   simulation if_seq_sim.
@@ -673,3 +668,352 @@ Proof.
   + constructor; tauto.
   + tauto.
 Qed.  
+
+(* Semantic Equivalence Approach *)
+
+Definition eval_like_mstep c1 k1 s1 c2 k2 s2 : Prop :=
+  forall c k s, (Halt c k \/ irreducible c k s) ->
+    mstep (c1, k1, s1) (c, k, s) -> mstep (c2, k2, s2) (c, k, s).
+
+Lemma wp_eval_like: forall c1 k1 s1 c2 k2 s2 Q R1 R2,
+  eval_like_mstep c2 k2 s2 c1 k1 s1 ->
+  WP c1 k1 Q R1 R2 s1 ->
+  WP c2 k2 Q R1 R2 s2.
+Proof.
+  intros. intros n.
+  rename H into Hlike.
+  rename H0 into H.
+  revert c2 k2 s2 Hlike.
+  induction n; intros; [constructor |].
+  pose proof halt_choice c2 k2 s2 as [? | [? | ?]].
+  - pose proof H0 as Hhalt;
+    destruct H0 as [? | [? | ?]]; inversion H0; subst;
+    specialize (Hlike _ _ _ (or_introl _ Hhalt) (rt_refl _ _)); clear Hhalt;
+    eapply WP_mstep_pre; eauto.
+  - constructor; auto; intros.
+    apply IHn. intros ? ? ? ? ?.
+    apply Hlike; auto.
+    eapply rt_trans; eauto.
+    apply rt_step; auto.
+  - specialize (Hlike _ _ _ (or_intror _ H0) (rt_refl _ _)).
+    eapply WP_mstep_pre; eauto.
+Qed.
+
+Ltac solve_nonhalt H :=
+  let H0 := fresh in
+  destruct H as [H0|[H0|H0]];
+  let H1 := fresh in
+  let H2 := fresh in
+  destruct H0 as [H1 H2];
+  try inversion H1;
+  try (apply symmetry, app_cons_not_nil in H2; exfalso; tauto).
+
+Ltac solve_nonterminal H :=
+  destruct H; [solve_nonhalt H|inversion H].
+
+Lemma if_path_spec: forall c k s,
+  (Halt c k \/ irreducible c k s) ->
+  forall b c1 c2 k1 s1,
+  mstep ((CIf b c1 c2), k1, s1) (c, k, s) <->
+  (multi_bstep s1 b BTrue /\
+    mstep (c1, k1, s1) (c, k, s)) \/
+  (multi_bstep s1 b BFalse /\
+    mstep (c2, k1, s1) (c, k, s)).
+Proof.
+  intros.
+  split; intros.
+  {
+    remember ((CIf b c1 c2), k1, s1) as cfg1.
+    remember (c, k, s) as cfg.
+    revert dependent s. revert c k.
+    revert dependent s1. revert b c1 c2.
+    induction_1n H0; intros; subst.
+    + inversion Heqcfg; subst.
+      solve_nonterminal H.
+    + inversion H; subst.
+      - specialize (IHrt _ _ _ _ ltac:(reflexivity) _ _ _ H1 ltac:(reflexivity)).
+        destruct IHrt as [[? ?] | [? ?]].
+        * assert (multi_bstep s1 b BTrue). { etransitivity_1n; eassumption. }
+          tauto.
+        * assert (multi_bstep s1 b BFalse). { etransitivity_1n; eassumption. }
+          tauto.
+      - assert (multi_bstep s1 BTrue BTrue). { reflexivity. }
+        tauto.
+      - assert (multi_bstep s1 BFalse BFalse). { reflexivity. }
+        tauto.
+  }
+  {
+    destruct H0 as [[? ?] | [? ?]].
+    + induction_1n H0.
+      - etransitivity_1n; [apply CS_IfTrue|auto].
+      - etransitivity_1n; [constructor|]; eassumption.
+    + induction_1n H0.
+    - etransitivity_1n; [apply CS_IfFalse|auto].
+    - etransitivity_1n; [constructor|]; eassumption.
+  }
+Qed.
+
+(* Lemma CSeq_path_spec: forall c k s,
+  (Halt c k \/ irreducible c k s) ->
+  forall c1 c2 k1 s1,
+  mstep (CSeq c1 c2, k1, s1) (c, k, s) <->
+  (mstep (c1, k1, s1) (c, k, s) \/
+  exists s2,
+  mstep (c1, k1, s1) (CSkip, k1, s2) /\
+  mstep (c2, k1, s2) (c, k, s)).
+Proof.
+  intros.
+  split; intros.
+  {
+    remember (CSeq c1 c2, k1, s1) as (c, k, s)
+  }
+  remember (CSeq c1 c2) as c eqn:H0.
+  remember CSkip as c' eqn:H1.
+  revert c1 c2 H0 H1; induction_1n H; intros; subst.
+  + inversion H1.
+  + inversion H; subst.
+    - specialize (IHrt _ _ ltac:(reflexivity) ltac:(reflexivity)).
+      destruct IHrt as [st2 [? ?]].
+      exists st2.
+      assert (multi_cstep (c1, st1) (Skip%imp, st2)).
+      { etransitivity_1n; eassumption. }
+      tauto.
+    - exists s.
+      split; [reflexivity | tauto].
+Qed. *)
+
+Theorem if_seq_valid_smallstep' : forall P b c1 c2 c3 Q R1 R2,
+  valid_smallstep P (CIf b (CSeq c1 c3) (CSeq c2 c3)) Q R1 R2 ->
+  valid_smallstep P (CSeq (CIf b c1 c2) c3) Q R1 R2.
+Proof.
+  unfold valid_smallstep.
+  intros.
+  apply H in H0.
+  eapply wp_eval_like; eauto.
+  clear.
+  intros ? ? ? ? ?.
+  apply rt_rt1n in H0.
+  inversion H0; subst; clear H0;
+  [solve_nonterminal H|].
+  inversion H1; subst; clear H1.
+  apply rt1n_rt in H2.
+
+  apply (if_path_spec _ _ _ H) in H2 as [[? ?]|[? ?]].
+  - apply (if_path_spec _ _ _ H).
+    left; split; auto.
+    etransitivity_1n; [constructor|auto].
+  - apply (if_path_spec _ _ _ H).
+    right; split; auto.
+    etransitivity_1n; [constructor|auto].
+Qed.
+
+
+Fixpoint CFor_path c1 c2 k1 s1 c k s (n: nat): Prop:=
+  match n with
+  | O =>
+      (* c1 break *)
+      (exists k2, mstep (c1, nil, s1) (CBreak, k2, s) /\
+        (c, k, s) = (CSkip, k1, s)) \/
+      (* c1 stuck middle *)
+      (exists c1' k1', irreducible c1' k1' s /\
+        mstep (c1, nil, s1) (c1', k1', s) /\
+        (c, k, s) = (c1', k1' ++ KSeq CCont :: KLoop1 c1 c2 :: k1, s)) \/
+      (
+        exists s2, mstep (CSeq c1 CCont, nil, s1) (CCont, nil, s2) /\
+        (
+          (* c2 break *)
+          (exists k2, mstep (c2, nil, s2) (CBreak, k2, s) /\
+            (c, k, s) = (CSkip, k1, s)) \/
+          (* c2 stuck middle *)
+          (exists c2' k2', irreducible c2' (k2' ++ KLoop2 c1 c2 :: k1) s /\
+            mstep (c2, nil, s2) (c2', k2', s) /\
+            (c, k, s) = (c2', k2' ++ KLoop2 c1 c2 :: k1, s)) \/
+          (* c2 continue: stuck *)
+          exists k2, mstep (c2, nil, s2) (CCont, k2, s) /\
+            (c, k, s) = (CCont, (KLoop2 c1 c2 :: k1), s)
+        )
+      )
+  | S n' => 
+      exists s2, mstep (CSeq c1 CCont, nil, s1) (CCont, nil, s2) /\
+      exists s3, mstep (c2, nil, s2) (CSkip, nil, s3) /\
+      CFor_path c1 c2 k1 s3 c k s n'
+  end.
+
+Definition CFor_path' c1' k1' c1 c2 k1 s1 c k s (n: nat): Prop:=
+  match n with
+  | O =>
+      (* c1 break *)
+      (exists k2, mstep (c1', k1', s1) (CBreak, k2, s) /\
+        (c, k, s) = (CSkip, k1, s)) \/
+      (* c1 stuck middle *)
+      (exists c1'' k1'', irreducible c1'' k1'' s /\
+        mstep (c1', k1', s1) (c1'', k1'', s) /\
+        (c, k, s) = (c1'', k1'' ++ KSeq CCont :: KLoop1 c1 c2 :: k1, s)) \/
+      (
+        exists s2, mstep (c1', k1' ++ KSeq CCont :: nil, s1) (CCont, nil, s2) /\
+        (
+          (* c2 break *)
+          (exists k2, mstep (c2, nil, s2) (CBreak, k2, s) /\
+            (c, k, s) = (CSkip, k1, s)) \/
+          (* c2 stuck middle *)
+          (exists c2' k2', irreducible c2' (k2' ++ KLoop2 c1 c2 :: k1) s /\
+            mstep (c2, nil, s2) (c2', k2', s) /\
+            (c, k, s) = (c2', k2' ++ KLoop2 c1 c2 :: k1, s)) \/
+          (* c2 continue: stuck *)
+          exists k2, mstep (c2, nil, s2) (CCont, k2, s) /\
+            (c, k, s) = (CCont, (KLoop2 c1 c2 :: k1), s)
+        )
+      )
+  | S n' => 
+      exists s2, mstep (c1', k1' ++ KSeq CCont :: nil, s1) (CCont, nil, s2) /\
+      exists s3, mstep (c2, nil, s2) (CSkip, nil, s3) /\
+      CFor_path c1 c2 k1 s3 c k s n'
+  end.
+
+Definition CFor_path'' c2' k2' c1 c2 k1 s1 c k s (n: nat): Prop:=
+  match n with
+  | O =>
+      (* c2 break *)
+      (exists k2, mstep (c2', k2', s1) (CBreak, k2, s) /\
+        (c, k, s) = (CSkip, k1, s)) \/
+      (* c2 stuck middle *)
+      (exists c2'' k2'', irreducible c2'' (k2'' ++ KLoop2 c1 c2 :: k1) s /\
+        mstep (c2', k2', s1) (c2'', k2'', s) /\
+        (c, k, s) = (c2'', k2'' ++ KLoop2 c1 c2 :: k1, s)) \/
+      (* c2 continue: stuck *)
+      exists k2, mstep (c2', k2', s1) (CCont, k2, s) /\
+        (c, k, s) = (CCont, (KLoop2 c1 c2 :: k1), s)
+  | S n' => 
+      exists s2, mstep (c2', k2', s1) (CSkip, nil, s2) /\
+      CFor_path c1 c2 k1 s2 c k s n'
+  end.
+
+(* Lemma CFor_path_spec: forall c k s,
+  (Halt c k \/ irreducible c k s) ->
+  forall c1 c2 k1 s1,
+  mstep (CFor c1 c2, k1, s1) (c, k, s) ->
+  exists n, CFor_path c1 c2 k1 s1 c k s n.
+Proof.
+  intros.
+  remember (CFor c1 c2, k1, s1) as cfg1.
+  remember (c, k, s) as cfg2.
+  revert dependent s. revert c k.
+  assert 
+  revert dependent s1. revert c1 c2 k1.
+  induction_1n H0; intros; subst.
+  + inversion Heqcfg2; subst.
+    solve_nonterminal H.
+  + inversion H; subst.
+    pose proof CWhile_path_spec_aux st1 st2 c c'.
+    tauto. *)
+
+Lemma for_c1_step_inv: forall c1 c2 c1' k1' k1 s1 cfg1,
+  cstep (c1', k1' ++ KSeq CCont :: KLoop1 c1 c2 :: k1, s1) cfg1 ->
+  exists c1'' k1'' s1',
+  cfg1 = (c1'', k1'' ++ KLoop1 c1 c2 :: k1, s1') /\
+  (k1'' = nil \/ exists k1''', k1'' = k1''' ++ KSeq CCont :: nil).
+Proof.
+
+Admitted.
+
+Lemma CWhile_path_spec_aux:
+  forall c k s, (Halt c k \/ irreducible c k s) ->
+  forall cfg1, mstep cfg1 (c, k, s) ->
+  (forall c1 c2 k1 s1,
+    cfg1 = (CFor c1 c2, k1, s1) ->
+    exists n, CFor_path c1 c2 k1 s1 c k s n) /\
+  (forall s1 c1 c2 k1,
+    cfg1 = (CSeq c1 CCont, KLoop1 c1 c2 :: k1, s1) ->
+    exists n, CFor_path' c1 nil c1 c2 k1 s1 c k s n) /\
+  (forall c1' k1' s1 c1 c2 k1,
+    cfg1 = (c1', k1' ++ KSeq CCont :: KLoop1 c1 c2 :: k1, s1) -> 
+    exists n, CFor_path' c1' k1' c1 c2 k1 s1 c k s n) /\
+  (forall c2' k2' s1 c1 c2 k1,
+    cfg1 = (c2', k2' ++ KLoop2 c1 c2 :: k1, s1) ->
+    exists n, CFor_path'' c2' k2' c1 c2 k1 s1 c k s n).
+Proof.
+  intros.
+  remember (c, k, s) as cfg2.
+  revert dependent s. revert c k.
+  induction_1n H0; intros; subst.
+  + repeat split.
+    - inversion 1; subst; solve_nonterminal H.
+    - inversion 1; subst; solve_nonterminal H.
+    - inversion 1; subst; destruct H; [solve_nonhalt H|].
+      exists O; simpl.
+      right; left. exists c1', k1'.
+      split; [|split]; [|apply rt_refl|reflexivity].
+      inversion H; subst;
+      destruct k1'; inversion H3; subst; constructor.
+    - inversion 1; subst.
+      destruct H; [solve_nonhalt H|].
+      exists O; simpl.
+      right; left. exists c2', k2'.
+      split; [|split]; [|apply rt_refl|reflexivity].
+      inversion H; subst;
+      destruct k2'; inversion H3; subst; constructor.
+  + specialize (IHrt _ _ _ H1 ltac:(reflexivity)).
+    repeat split; inversion 1; subst; clear H3.
+    - inversion H; subst; clear H.
+      destruct IHrt as [_ [? _]].
+      specialize (H _ _ _ _ ltac:(reflexivity)).
+      destruct H as [[| ?] ?].
+      * exists 0%nat. simpl in *.
+        destruct H as [? | [? | ?]]; try tauto.
+        destruct H as [? [? ?]].
+        destruct H2 as [? | [? | ?]];
+        (right; right; eexists; split;
+        [etransitivity_1n; [constructor|eauto]|tauto]).
+      * exists (S n). simpl in *.
+        destruct H as [? [? ?]].
+        eexists; split; [etransitivity_1n; [constructor|eauto]|tauto].
+    - inversion H; subst; clear H.
+      destruct IHrt as [_ [_ [? _]]].
+      specialize (H c1 nil). simpl in H.
+      specialize (H _ _ _ _ ltac:(reflexivity)); auto.
+    - apply for_c1_step_inv in H as [? [? [? [? [? | ?]]]]];
+      inversion H; subst; clear H3.
+      * 
+      inversion H; subst; clear H2.
+      destruct cfg1.
+      destruct IHrt as [_ [_ [_ ?]]].
+
+
+Theorem loop_nocontinue_valid_smallstep' : forall P c1 c2 Q R1 R2,
+  nocontinue_c c1 ->
+  nocontinue_c c2 ->
+  valid_smallstep P (CFor (CSeq c1 c2) CSkip) Q R1 R2 ->
+  valid_smallstep P (CFor c1 c2) Q R1 R2.
+Proof.
+  unfold valid_smallstep.
+  intros.
+  apply H1 in H2.
+  eapply wp_eval_like; eauto.
+  clear - H H0.
+  intros ? ? ? ? ?.
+  
+  apply rt_rt1n in H2.
+  
+  remember (@pair (prod com continuation) state
+  (@pair com continuation (CFor c1 c2) (@nil KElements)) st) as cfg1.
+  remember (c, k, s) as cfg2.
+  revert dependent s. revert c k.
+  revert dependent st. revert c1 c2 H H0.
+  induction H2; intros; subst;
+  try inversion Heqcfg2; subst.
+  {
+    admit.
+  }
+
+  inversion H; subst; clear H.
+  inversion H2; subst; clear H2.
+  {
+    admit.
+  }
+  inversion H; subst; clear H.
+  eapply rt_trans; [eapply rt_step; constructor|].
+  eapply rt_trans; [eapply rt_step; constructor|].
+  eapply rt_trans; [eapply rt_step; constructor|].
+Abort.
+
+Print nocontinue_c.
