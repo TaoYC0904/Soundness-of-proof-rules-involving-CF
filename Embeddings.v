@@ -1,3 +1,64 @@
+(* Require Import Coq.Arith.EqNat.
+
+
+Definition var := nat.
+
+
+Definition vars := var -> nat.
+Definition set (vs : vars) (v : var) (n : nat) : vars :=
+  fun v' => if beq_nat v v' then n else vs v'.
+
+Inductive exp : Set :=
+| Const : nat -> exp
+| Var : var -> exp
+| Plus : exp -> exp -> exp.
+
+Fixpoint evalExp (vs : vars) (e : exp) : nat :=
+  match e with
+    | Const n => n
+    | Var v => vs v
+    | Plus e1 e2 => evalExp vs e1 + evalExp vs e2
+  end.
+
+
+Inductive cmd : Set :=
+| Assign : var -> exp -> cmd
+| Seq : cmd -> cmd -> cmd
+| While : exp -> cmd -> cmd.
+
+CoInductive evalCmd : vars -> cmd -> vars -> Prop :=
+| EvalAssign : forall vs v e, evalCmd vs (Assign v e) (set vs v (evalExp vs e))
+| EvalSeq : forall vs1 vs2 vs3 c1 c2, evalCmd vs1 c1 vs2
+  -> evalCmd vs2 c2 vs3
+  -> evalCmd vs1 (Seq c1 c2) vs3
+| EvalWhileFalse : forall vs e c, evalExp vs e = 0
+  -> evalCmd vs (While e c) vs
+| EvalWhileTrue : forall vs1 vs2 vs3 e c, evalExp vs1 e <> 0
+  -> evalCmd vs1 c vs2
+  -> evalCmd vs2 (While e c) vs3
+  -> evalCmd vs1 (While e c) vs3.
+  
+Section evalCmd_coind.
+  Variable R : vars -> cmd -> vars -> Prop.
+
+  Hypothesis AssignCase : forall vs1 vs2 v e, R vs1 (Assign v e) vs2
+    -> vs2 = set vs1 v (evalExp vs1 e).
+
+  Hypothesis SeqCase : forall vs1 vs3 c1 c2, R vs1 (Seq c1 c2) vs3
+    -> exists vs2, R vs1 c1 vs2 /\ R vs2 c2 vs3.
+
+  Hypothesis WhileCase : forall vs1 vs3 e c, R vs1 (While e c) vs3
+    -> (evalExp vs1 e = 0 /\ vs3 = vs1)
+    \/ exists vs2, evalExp vs1 e <> 0 /\ R vs1 c vs2 /\ R vs2 (While e c) vs3.
+
+  Theorem evalCmd_coind : forall vs1 c vs2, R vs1 c vs2 -> evalCmd vs1 c vs2.
+    cofix evalCmd_coind; intros; destruct c.
+    rewrite (AssignCase _ _ _ _ H); constructor.
+    destruct (SeqCase _ _ _ _ H) as [? [? ?]]; econstructor; eauto.
+    destruct (WhileCase _ _ _ _ H) as [[? ?] | [? [? [? ?]]]]; subst; econstructor; eauto.
+  Qed.
+End evalCmd_coind. *)
+
 Require Import Coq.Lists.List.
 Require Import Shallow.Imp.
 Require Import Shallow.ImpCF.
@@ -44,6 +105,64 @@ Definition total_valid_bigstep (P : Assertion) (c : com) (Q R1 R2 : Assertion) :
 
 End BigS.
 
+CoInductive coWP: com -> continuation -> Assertion -> Assertion -> Assertion -> state -> Prop :=
+| coWP_Ter1: forall Q R1 R2 st,
+    Assertion_denote st Q -> coWP CSkip nil Q R1 R2 st
+| coWP_Ter2: forall Q R1 R2 st,
+    Assertion_denote st R1 -> coWP CBreak nil Q R1 R2 st
+| coWP_Ter3: forall Q R1 R2 st,
+    Assertion_denote st R2 -> coWP CCont nil Q R1 R2 st
+| coWP_Pre: forall c k st Q R1 R2,
+    reducible c k st ->
+    (forall c' k' st', 
+      cstep (c, k, st) (c', k', st') -> coWP c' k' Q R1 R2 st') ->
+    coWP c k Q R1 R2 st.
+
+Section CoInductiveWP_coind.
+  Variable R : com -> continuation -> Assertion -> Assertion -> Assertion -> state -> Prop.
+
+  Hypothesis coWP_Ter1Case : forall Q R1 R2 st,
+    R CSkip nil Q R1 R2 st -> Assertion_denote st Q.
+
+  Hypothesis coWP_Ter2Case : forall Q R1 R2 st,
+    R CBreak nil Q R1 R2 st -> Assertion_denote st R1.
+    
+  Hypothesis coWP_Ter3Case : forall Q R1 R2 st,
+    R CCont nil Q R1 R2 st -> Assertion_denote st R2.
+
+  Hypothesis coWP_PreCase : forall c k st Q R1 R2,
+    R c k Q R1 R2 st ->
+    reducible c k st ->
+    (forall c' k' st', 
+      cstep (c, k, st) (c', k', st') -> R c' k' Q R1 R2 st').
+
+  Hypothesis coWP_IrCase : forall c k st Q R1 R2,
+    R c k Q R1 R2 st ->
+    irreducible c k st ->
+    False.
+
+  (* Hypothesis WP_IrCase: forall c k st Q R1 R2,
+    R c k Q R1 R2 st -> ~irreducible c k st. *)
+
+  Theorem CoInductiveWP_coind : forall c k Q R1 R2 st,
+    R c k Q R1 R2 st -> coWP c k Q R1 R2 st.
+    cofix CoInductiveWP_coind; intros.
+    pose proof halt_choice c k st as [? | [? | ?]].
+    {
+      destruct H0 as [? | [? | ?]];
+      destruct H0; subst; constructor; eauto.
+    }
+    {
+      specialize (coWP_PreCase _ _ _ _ _ _ H H0).
+      eapply coWP_Pre; eauto.
+    }
+    {
+      specialize (coWP_IrCase _ _ _ _ _ _ H H0).
+      inversion coWP_IrCase.
+    }
+  Qed.
+End CoInductiveWP_coind.
+
 Module SmallS.
 
 Inductive WP_n : nat -> com -> continuation -> Assertion -> Assertion -> Assertion -> state -> Prop :=
@@ -66,6 +185,45 @@ Definition WP c k Q R1 R2 st : Prop :=
   forall n, WP_n n c k Q R1 R2 st.
 
 Ltac iLob := intros n; induction n; [constructor |].
+
+Lemma coWP_WP_equiv: forall c k Q R1 R2 st,
+  coWP c k Q R1 R2 st <-> WP c k Q R1 R2 st.
+Proof.
+  intros; split; intros.
+  {
+    intros n.
+    revert c k Q R1 R2 st H.
+    induction n; [constructor |]; intros.
+    inversion H; subst; try (constructor; auto).
+  }
+  {
+    intros.
+    apply (CoInductiveWP_coind (fun c k Q R1 R2 st => WP c k Q R1 R2 st)); intros;
+    try match goal with
+      | H0: WP _ nil _ _ _ _ |- _ =>
+      specialize (H0 (S O)); inversion H0; subst; auto;
+      exfalso; eapply halt_reducible_ex; eauto;
+      auto_halt
+      end.
+    {
+      intros n.
+      specialize (H0 (S n)).
+      inversion H0; subst; auto;
+      inversion H2.
+    }
+    {
+      specialize (H0 (S O)).
+      inversion H0; subst;
+      try match goal with
+        | H0: irreducible _ nil _ |- _ =>
+        apply halt_irreducible_ex in H1; eauto; auto_halt
+        end.
+      eapply reducible_irreducible_ex; eauto.
+    }
+    auto.
+  }
+Qed.
+
 
 Definition valid_smallstep (P : Assertion) (c : com) (Q R1 R2 : Assertion) : Prop :=
   forall st, Assertion_denote st P -> WP c nil Q R1 R2 st.
