@@ -235,7 +235,7 @@ Proof.
     apply safe_Pre;
     [exists (CSeq CSkip CCont), (KLoop1 CSkip CSkip :: k), st'2; constructor | intros].
     inversion_clear H0.
-    apply IHm; omega.
+    apply IHm; lia.
 Qed.
 
 Definition start_with_KLoop2 k : Prop :=
@@ -1343,54 +1343,6 @@ Proof.
     exfalso; apply (reducible_irreducible_ex c (ka ++ K :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); auto.
 Qed.
 
-(* Lemma nocontinuecsc_safe_2 : forall ka kc x0 x1 st,
-  safe CSkip (ka ++ KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st -> safe CSkip (ka ++ KLoop1 x0 x1 :: kc) st.
-Proof.
-  intros.
-  remember CSkip as c.
-  rewrite Heqc in H at 2.
-  clear Heqc.
-  intros n.
-  revert c ka st H.
-
-  pose proof le_refl n.
-  remember n as m.
-  rewrite Heqm in H at 2.
-  clear Heqm. revert m H.
-  
-  induction n; intros;
-  [inversion H; subst; constructor|intros].
-  pose proof halt_choice c ka st as [? | [? | ?]].
-  - destruct H1 as [? | [? | ?]]; inversion H1; subst; simpl in *.
-    + specialize (H0 (S n)).
-      inversion H0; subst.
-      assert (irreducible CSkip (KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); [constructor|].
-      exfalso; apply (reducible_irreducible_ex CSkip (KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); auto.
-    + admit.
-    + admit.
-  - destruct m; [constructor |].
-    apply safe_Pre; [apply reducible_ctx_step; auto|intros].
-    apply fill_cstep_inv in H2; [| solve_wp_0].
-    destruct H2 as [? [? ?]]; subst.
-    apply IHn; [lia|]. intros n'.
-    specialize (H0 (S n')); inversion H0; subst;
-    [ apply app_cons_not_nil in H6; inversion H6|
-      apply app_cons_not_nil in H6; inversion H6|
-      apply app_cons_not_nil in H6; inversion H6|].
-    apply H5. apply cstep_ctx_step; auto.
-  - assert (irreducible c (ka ++ KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); [inversion H1; subst; constructor|].
-    specialize (H0 (S n)).
-    inversion H0; subst;
-    [ apply app_cons_not_nil in H6; inversion H6|
-      apply app_cons_not_nil in H6; inversion H6|
-      apply app_cons_not_nil in H6; inversion H6|].
-    exfalso; apply (reducible_irreducible_ex c (ka ++ KLoop1 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st); auto.
-Admitted. *)
-
-(* Lemma nocontinuecsc_safe_3 : forall ka kc x0 x1 st,
-  safe CSkip (ka ++ KLoop2 x0 x1 :: KSeq CBreak :: KLoop1 CSkip dead :: kc) st -> safe CSkip (ka ++ KLoop2 x0 x1 :: kc) st.
-Proof.
-Admitted. *)
 
 
 Lemma nocontinue_csc_guard : forall P c k,
@@ -1969,15 +1921,3 @@ Proof.
 Qed.
 
 
-(* Semantic Equivalence Approach *)
-
-Definition eval_like_mstep c1 k1 s1 c2 k2 s2 : Prop :=
-  forall c k s, (Halt c k \/ irreducible c k s) ->
-    mstep (c1, k1, s1) (c, k, s) -> mstep (c2, k2, s2) (c, k, s).
-
-Lemma safe_eval_like: forall c1 k1 s1 c2 k2 s2,
-  eval_like_mstep c2 k2 s2 c1 k1 s1 ->
-  safe c1 k1 s1 ->
-  safe c2 k2 s2.
-Proof.
-  

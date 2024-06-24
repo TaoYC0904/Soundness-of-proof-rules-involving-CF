@@ -8,6 +8,6 @@ ImpExt.v
 ImpCF.v
 Embeddings.v
 
-BigStep_NonDet.v
+BigSProof.v
 SmallSProof.v
 ContProof.v

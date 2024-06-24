@@ -5508,16 +5508,6 @@ Definition sound: Prop :=
 Definition complete: Prop :=
   forall P: prop, |== P -> |-- P.
 
-Lemma prop_sub_spec: forall J (P: prop) (x: logical_var) (t: term),
-  J |== P[ x |-> t] <->
-  Interp_Lupdate J x (term_denote J t) |== P.
-Admitted.
-
-Lemma no_occ_satisfies: forall J P x v,
-  prop_free_occur x P = O ->
-  (J |== P <-> Interp_Lupdate J x v |== P).
-Admitted.
-
 End OneBinRel_FOL.
 
 (* 2021-02-21 23:59 *)

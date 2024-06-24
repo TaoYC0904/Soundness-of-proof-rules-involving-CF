@@ -670,6 +670,7 @@ Proof.
 Qed.  
 
 (* Semantic Equivalence Approach *)
+(* Aborted since it is no easier than the simulation approach. *)
 
 Definition eval_like_mstep c1 k1 s1 c2 k2 s2 : Prop :=
   forall c k s, (Halt c k \/ irreducible c k s) ->
@@ -913,8 +914,7 @@ Lemma for_c1_step_inv: forall c1 c2 c1' k1' k1 s1 cfg1,
   cfg1 = (c1'', k1'' ++ KLoop1 c1 c2 :: k1, s1') /\
   (k1'' = nil \/ exists k1''', k1'' = k1''' ++ KSeq CCont :: nil).
 Proof.
-
-Admitted.
+Abort.
 
 Lemma CWhile_path_spec_aux:
   forall c k s, (Halt c k \/ irreducible c k s) ->
@@ -971,13 +971,13 @@ Proof.
       destruct IHrt as [_ [_ [? _]]].
       specialize (H c1 nil). simpl in H.
       specialize (H _ _ _ _ ltac:(reflexivity)); auto.
-    - apply for_c1_step_inv in H as [? [? [? [? [? | ?]]]]];
+    (* - apply for_c1_step_inv in H as [? [? [? [? [? | ?]]]]];
       inversion H; subst; clear H3.
       * 
       inversion H; subst; clear H2.
       destruct cfg1.
-      destruct IHrt as [_ [_ [_ ?]]].
-
+      destruct IHrt as [_ [_ [_ ?]]]. *)
+Abort.
 
 Theorem loop_nocontinue_valid_smallstep' : forall P c1 c2 Q R1 R2,
   nocontinue_c c1 ->
