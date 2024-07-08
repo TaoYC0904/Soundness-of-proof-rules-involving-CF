@@ -1001,19 +1001,6 @@ Proof.
   revert dependent st. revert c1 c2 H H0.
   induction H2; intros; subst;
   try inversion Heqcfg2; subst.
-  {
-    admit.
-  }
-
-  inversion H; subst; clear H.
-  inversion H2; subst; clear H2.
-  {
-    admit.
-  }
-  inversion H; subst; clear H.
-  eapply rt_trans; [eapply rt_step; constructor|].
-  eapply rt_trans; [eapply rt_step; constructor|].
-  eapply rt_trans; [eapply rt_step; constructor|].
 Abort.
 
 Print nocontinue_c.
